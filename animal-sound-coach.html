@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paws & Practice — Animal Sound Coach</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+
+:root {
+  --bg: #1a1520;
+  --surface: #241e2e;
+  --surface-2: #2e2639;
+  --cat-primary: #ff6b9d;
+  --cat-glow: #ff6b9d44;
+  --cat-light: #ffb8d4;
+  --dog-primary: #ffa94d;
+  --dog-glow: #ffa94d44;
+  --dog-light: #ffd8a8;
+  --text: #f0eaf5;
+  --text-dim: #9a8faa;
+  --success: #69db7c;
+  --warning: #ffd43b;
+  --danger: #ff6b6b;
+  --radius: 20px;
+}
+
+body {
+  font-family: 'Fredoka', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* === BACKGROUND TEXTURE === */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 600px 400px at 20% 30%, #ff6b9d11 0%, transparent 70%),
+    radial-gradient(ellipse 500px 500px at 80% 70%, #ffa94d0c 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.app {
+  position: relative;
+  z-index: 1;
+  max-width: 440px;
+  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* === HEADER === */
+.header {
+  padding: 24px 24px 0;
+  text-align: center;
+}
+
+.logo {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--cat-primary), var(--dog-primary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* === ANIMAL SELECTOR === */
+.selector {
+  display: flex;
+  gap: 12px;
+  padding: 20px 24px;
+}
+
+.animal-btn {
+  flex: 1;
+  border: 2.5px solid var(--surface-2);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 18px 12px;
+  cursor: pointer;
+  transition: all .3s cubic-bezier(.34,1.56,.64,1);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.animal-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity .3s;
+  border-radius: inherit;
+}
+
+.animal-btn.cat::before {
+  background: radial-gradient(circle at 50% 80%, var(--cat-glow), transparent 70%);
+}
+
+.animal-btn.dog::before {
+  background: radial-gradient(circle at 50% 80%, var(--dog-glow), transparent 70%);
+}
+
+.animal-btn:hover { transform: translateY(-2px); }
+
+.animal-btn.active {
+  transform: translateY(-3px);
+}
+
+.animal-btn.cat.active {
+  border-color: var(--cat-primary);
+  box-shadow: 0 8px 30px var(--cat-glow);
+}
+
+.animal-btn.cat.active::before { opacity: 1; }
+
+.animal-btn.dog.active {
+  border-color: var(--dog-primary);
+  box-shadow: 0 8px 30px var(--dog-glow);
+}
+
+.animal-btn.dog.active::before { opacity: 1; }
+
+.animal-emoji {
+  font-size: 40px;
+  display: block;
+  margin-bottom: 6px;
+  position: relative;
+  z-index: 1;
+  filter: grayscale(.3);
+  transition: filter .3s;
+}
+
+.animal-btn.active .animal-emoji { filter: none; }
+
+.animal-label {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-dim);
+  position: relative;
+  z-index: 1;
+  transition: color .3s;
+}
+
+.animal-btn.cat.active .animal-label { color: var(--cat-light); }
+.animal-btn.dog.active .animal-label { color: var(--dog-light); }
+
+.animal-sub {
+  font-size: 11px;
+  font-family: 'Space Mono', monospace;
+  color: var(--text-dim);
+  margin-top: 4px;
+  opacity: .6;
+  position: relative;
+  z-index: 1;
+}
+
+/* === MAIN CONTENT === */
+.main {
+  flex: 1;
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* === TARGET SHAPE === */
+.target-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.target-label {
+  font-size: 11px;
+  font-family: 'Space Mono', monospace;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 12px;
+}
+
+.target-canvas {
+  width: 100%;
+  height: 80px;
+  border-radius: 12px;
+  background: var(--bg);
+  position: relative;
+  overflow: hidden;
+}
+
+.target-canvas canvas {
+  width: 100%;
+  height: 100%;
+}
+
+/* === METERS === */
+.meters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.meter-card {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.meter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.meter-title {
+  font-size: 11px;
+  font-family: 'Space Mono', monospace;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.meter-value {
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'Space Mono', monospace;
+}
+
+.meter-track {
+  width: 100%;
+  height: 8px;
+  background: var(--bg);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.meter-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width .15s ease, background .3s;
+  width: 0%;
+}
+
+.meter-zone {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  border-left: 2px dashed var(--text-dim);
+  opacity: .3;
+}
+
+/* === FEEDBACK === */
+.feedback-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 24px;
+  text-align: center;
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .5s;
+  border: 2px solid transparent;
+}
+
+.feedback-card.success-glow {
+  border-color: var(--success);
+  box-shadow: 0 0 40px #69db7c22;
+}
+
+.feedback-icon {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.feedback-text {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.3;
+  transition: opacity .2s;
+}
+
+.feedback-hint {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-top: 8px;
+  font-family: 'Space Mono', monospace;
+}
+
+/* === LISTENING INDICATOR === */
+.listening-ring {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--danger);
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  animation: pulse-ring 1.5s ease infinite;
+}
+
+@keyframes pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 #ff6b6b55; }
+  50% { box-shadow: 0 0 0 8px #ff6b6b00; }
+}
+
+.listening-ring.active {
+  background: var(--success);
+  animation-name: pulse-green;
+}
+
+@keyframes pulse-green {
+  0%, 100% { box-shadow: 0 0 0 0 #69db7c55; }
+  50% { box-shadow: 0 0 0 8px #69db7c00; }
+}
+
+/* === PRACTICE BUTTON === */
+.practice-area {
+  padding: 8px 24px 32px;
+}
+
+.practice-btn {
+  width: 100%;
+  padding: 18px;
+  border: none;
+  border-radius: 16px;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .3s cubic-bezier(.34,1.56,.64,1);
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+}
+
+.practice-btn.cat-theme {
+  background: linear-gradient(135deg, var(--cat-primary), #e64980);
+  box-shadow: 0 6px 24px var(--cat-glow);
+}
+
+.practice-btn.dog-theme {
+  background: linear-gradient(135deg, var(--dog-primary), #e8590c);
+  box-shadow: 0 6px 24px var(--dog-glow);
+}
+
+.practice-btn:hover { transform: translateY(-2px) scale(1.01); }
+.practice-btn:active { transform: translateY(0) scale(.98); }
+
+.practice-btn.listening {
+  background: var(--surface-2) !important;
+  color: var(--text);
+  box-shadow: none !important;
+}
+
+/* === WAVEFORM (live) === */
+.waveform-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 32px;
+  margin-bottom: 10px;
+  opacity: 0;
+  transition: opacity .3s;
+}
+
+.waveform-bar.active { opacity: 1; }
+
+.wave-line {
+  width: 3px;
+  background: var(--text-dim);
+  border-radius: 2px;
+  height: 8px;
+  transition: height .1s ease, background .3s;
+}
+
+/* === MIC PERMISSION === */
+.mic-status {
+  text-align: center;
+  font-size: 12px;
+  font-family: 'Space Mono', monospace;
+  color: var(--text-dim);
+  padding: 0 24px 8px;
+}
+
+.mic-status.error { color: var(--danger); }
+
+/* === SCORE DOTS === */
+.score-row {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 24px 0;
+}
+
+.score-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  transition: background .4s, transform .4s cubic-bezier(.34,1.56,.64,1);
+}
+
+.score-dot.filled {
+  background: var(--success);
+  transform: scale(1.3);
+}
+
+/* === IDLE STATE === */
+.idle-state {
+  text-align: center;
+  padding: 40px 24px;
+  color: var(--text-dim);
+}
+
+.idle-emoji {
+  font-size: 56px;
+  margin-bottom: 12px;
+  display: block;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.idle-text {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.idle-sub {
+  font-size: 13px;
+  margin-top: 6px;
+  opacity: .6;
+  font-family: 'Space Mono', monospace;
+}
+
+/* === ANIMATIONS === */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-up {
+  animation: fadeUp .5s cubic-bezier(.22,1,.36,1) forwards;
+}
+
+/* === CONFETTI BURST === */
+.confetti-container {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.confetti-piece {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  animation: confetti-fall 1.5s ease forwards;
+}
+
+@keyframes confetti-fall {
+  0% { transform: translateY(-20px) rotate(0deg) scale(1); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg) scale(0); opacity: 0; }
+}
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <!-- Header -->
+  <header class="header fade-up">
+    <div class="logo">Paws & Practice</div>
+    <h1 class="title">Sound Coach</h1>
+  </header>
+
+  <!-- Animal Selector -->
+  <div class="selector fade-up" style="animation-delay:.1s">
+    <button class="animal-btn cat active" onclick="selectAnimal('cat')">
+      <span class="animal-emoji">🐱</span>
+      <span class="animal-label">Meow Coach</span>
+      <span class="animal-sub">meee → owh</span>
+    </button>
+    <button class="animal-btn dog" onclick="selectAnimal('dog')">
+      <span class="animal-emoji">🐶</span>
+      <span class="animal-label">Bark Practice</span>
+      <span class="animal-sub">short & sharp</span>
+    </button>
+  </div>
+
+  <!-- Score Dots -->
+  <div class="score-row" id="scoreRow">
+    <div class="score-dot"></div>
+    <div class="score-dot"></div>
+    <div class="score-dot"></div>
+    <div class="score-dot"></div>
+    <div class="score-dot"></div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main" id="mainContent">
+    <div class="idle-state" id="idleState">
+      <span class="idle-emoji">🎤</span>
+      <div class="idle-text">Pick your animal & start practicing</div>
+      <div class="idle-sub">Real-time sound coaching</div>
+    </div>
+
+    <!-- Active practice UI (hidden initially) -->
+    <div id="practiceUI" style="display:none">
+      <!-- Waveform -->
+      <div class="waveform-bar" id="waveform"></div>
+
+      <!-- Target Shape -->
+      <div class="target-card fade-up">
+        <div class="target-label">Target Shape</div>
+        <div class="target-canvas">
+          <canvas id="targetCanvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Meters -->
+      <div class="meters fade-up" style="animation-delay:.1s">
+        <div class="meter-card">
+          <div class="meter-header">
+            <span class="meter-title">Volume</span>
+            <span class="meter-value" id="volValue" style="color:var(--text-dim)">—</span>
+          </div>
+          <div class="meter-track">
+            <div class="meter-zone" style="left:20%"></div>
+            <div class="meter-zone" style="left:80%"></div>
+            <div class="meter-fill" id="volFill"></div>
+          </div>
+        </div>
+        <div class="meter-card">
+          <div class="meter-header">
+            <span class="meter-title">Pitch</span>
+            <span class="meter-value" id="pitchValue" style="color:var(--text-dim)">—</span>
+          </div>
+          <div class="meter-track">
+            <div class="meter-zone" style="left:30%"></div>
+            <div class="meter-zone" style="left:70%"></div>
+            <div class="meter-fill" id="pitchFill"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feedback -->
+      <div class="feedback-card fade-up" style="animation-delay:.2s" id="feedbackCard">
+        <div class="listening-ring" id="listenRing"></div>
+        <div class="feedback-icon" id="feedbackIcon">🔇</div>
+        <div class="feedback-text" id="feedbackText">Listening...</div>
+        <div class="feedback-hint" id="feedbackHint">make a sound to begin</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mic Status -->
+  <div class="mic-status" id="micStatus"></div>
+
+  <!-- Practice Button -->
+  <div class="practice-area">
+    <button class="practice-btn cat-theme" id="practiceBtn" onclick="togglePractice()">
+      Start Meow Practice
+    </button>
+  </div>
+</div>
+
+<div class="confetti-container" id="confetti"></div>
+
+<script>
+// ============ STATE ============
+let state = {
+  animal: 'cat',
+  practicing: false,
+  audioCtx: null,
+  analyser: null,
+  stream: null,
+  dataArray: null,
+  rafId: null,
+  lastFeedbackTime: 0,
+  currentFeedback: '',
+  score: 0,
+  soundStartTime: 0,
+  isMakingSound: false,
+  pitchHistory: [],
+};
+
+// ============ ANIMAL SELECTION ============
+function selectAnimal(animal) {
+  if (state.practicing) return;
+  state.animal = animal;
+  document.querySelectorAll('.animal-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.animal-btn.${animal}`).classList.add('active');
+
+  const btn = document.getElementById('practiceBtn');
+  btn.className = `practice-btn ${animal}-theme`;
+  btn.textContent = animal === 'cat' ? 'Start Meow Practice' : 'Start Bark Practice';
+}
+
+// ============ PRACTICE TOGGLE ============
+async function togglePractice() {
+  if (state.practicing) {
+    stopPractice();
+  } else {
+    await startPractice();
+  }
+}
+
+async function startPractice() {
+  const micStatus = document.getElementById('micStatus');
+  try {
+    state.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    micStatus.textContent = '';
+    micStatus.className = 'mic-status';
+  } catch(e) {
+    micStatus.textContent = '⚠ Microphone access denied';
+    micStatus.className = 'mic-status error';
+    return;
+  }
+
+  state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const source = state.audioCtx.createMediaStreamSource(state.stream);
+  state.analyser = state.audioCtx.createAnalyser();
+  state.analyser.fftSize = 2048;
+  state.analyser.smoothingTimeConstant = 0.8;
+  source.connect(state.analyser);
+
+  state.dataArray = new Uint8Array(state.analyser.frequencyBinCount);
+  state.practicing = true;
+  state.score = 0;
+  state.pitchHistory = [];
+  updateScoreDots();
+
+  // UI updates
+  document.getElementById('idleState').style.display = 'none';
+  document.getElementById('practiceUI').style.display = 'flex';
+  document.getElementById('practiceUI').style.flexDirection = 'column';
+  document.getElementById('practiceUI').style.gap = '16px';
+
+  const btn = document.getElementById('practiceBtn');
+  btn.classList.add('listening');
+  btn.textContent = '■  Stop Practice';
+
+  setupWaveform();
+  drawTargetShape();
+
+  document.getElementById('waveform').classList.add('active');
+  document.getElementById('listenRing').classList.add('active');
+
+  // Start loop
+  analyzeLoop();
+}
+
+function stopPractice() {
+  state.practicing = false;
+  if (state.stream) {
+    state.stream.getTracks().forEach(t => t.stop());
+    state.stream = null;
+  }
+  if (state.audioCtx) {
+    state.audioCtx.close();
+    state.audioCtx = null;
+  }
+  if (state.rafId) cancelAnimationFrame(state.rafId);
+
+  document.getElementById('idleState').style.display = '';
+  document.getElementById('practiceUI').style.display = 'none';
+  document.getElementById('waveform').classList.remove('active');
+
+  const btn = document.getElementById('practiceBtn');
+  btn.classList.remove('listening');
+  btn.className = `practice-btn ${state.animal}-theme`;
+  btn.textContent = state.animal === 'cat' ? 'Start Meow Practice' : 'Start Bark Practice';
+}
+
+// ============ WAVEFORM BARS ============
+function setupWaveform() {
+  const container = document.getElementById('waveform');
+  container.innerHTML = '';
+  for (let i = 0; i < 24; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'wave-line';
+    container.appendChild(bar);
+  }
+}
+
+function updateWaveform(volume) {
+  const bars = document.querySelectorAll('.wave-line');
+  const accent = state.animal === 'cat' ? 'var(--cat-primary)' : 'var(--dog-primary)';
+  bars.forEach((bar, i) => {
+    const center = bars.length / 2;
+    const dist = Math.abs(i - center) / center;
+    const h = volume > 0.05
+      ? 8 + (volume * 24 * (1 - dist * 0.6)) * (0.7 + Math.random() * 0.3)
+      : 8;
+    bar.style.height = h + 'px';
+    bar.style.background = volume > 0.1 ? accent : 'var(--text-dim)';
+  });
+}
+
+// ============ TARGET SHAPE ============
+function drawTargetShape() {
+  const canvas = document.getElementById('targetCanvas');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * 2;
+  canvas.height = rect.height * 2;
+  canvas.style.width = rect.width + 'px';
+  canvas.style.height = rect.height + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(2, 2);
+
+  const w = rect.width, h = rect.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const color = state.animal === 'cat' ? '#ff6b9d' : '#ffa94d';
+  ctx.strokeStyle = color + '55';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4, 4]);
+
+  ctx.beginPath();
+  if (state.animal === 'cat') {
+    // meow: rise, sustain, fall
+    ctx.moveTo(w * 0.05, h * 0.8);
+    ctx.bezierCurveTo(w * 0.15, h * 0.2, w * 0.25, h * 0.15, w * 0.4, h * 0.2);
+    ctx.bezierCurveTo(w * 0.55, h * 0.25, w * 0.65, h * 0.25, w * 0.7, h * 0.3);
+    ctx.bezierCurveTo(w * 0.8, h * 0.5, w * 0.9, h * 0.7, w * 0.95, h * 0.85);
+  } else {
+    // bark: quick spike
+    ctx.moveTo(w * 0.1, h * 0.85);
+    ctx.bezierCurveTo(w * 0.2, h * 0.8, w * 0.3, h * 0.15, w * 0.4, h * 0.1);
+    ctx.bezierCurveTo(w * 0.5, h * 0.15, w * 0.55, h * 0.7, w * 0.6, h * 0.85);
+    ctx.lineTo(w * 0.95, h * 0.85);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Labels
+  ctx.font = '600 11px "Space Mono", monospace';
+  ctx.fillStyle = color + '88';
+  if (state.animal === 'cat') {
+    ctx.fillText('meee', w * 0.15, h * 0.55);
+    ctx.fillText('→', w * 0.45, h * 0.55);
+    ctx.fillText('owh', w * 0.7, h * 0.75);
+  } else {
+    ctx.fillText('WOOF!', w * 0.3, h * 0.55);
+    ctx.fillText('quick', w * 0.55, h * 0.75);
+  }
+}
+
+// ============ ANALYSIS LOOP ============
+function analyzeLoop() {
+  if (!state.practicing) return;
+
+  state.analyser.getByteTimeDomainData(state.dataArray);
+  const volume = getVolume();
+  const pitch = getPitch();
+
+  updateWaveform(volume);
+  updateMeters(volume, pitch);
+
+  // Feedback throttle
+  const now = Date.now();
+  if (now - state.lastFeedbackTime > 400) {
+    const fb = generateFeedback(volume, pitch);
+    if (fb.message !== state.currentFeedback) {
+      setFeedback(fb);
+      state.currentFeedback = fb.message;
+    }
+    state.lastFeedbackTime = now;
+  }
+
+  // Track sound state
+  if (volume > 0.08) {
+    if (!state.isMakingSound) {
+      state.soundStartTime = now;
+      state.isMakingSound = true;
+      state.pitchHistory = [];
+    }
+    state.pitchHistory.push(pitch);
+  } else {
+    if (state.isMakingSound && now - state.soundStartTime > 200) {
+      // Sound just ended — evaluate attempt
+      evaluateAttempt();
+    }
+    state.isMakingSound = false;
+  }
+
+  state.rafId = requestAnimationFrame(analyzeLoop);
+}
+
+function getVolume() {
+  let sum = 0;
+  for (let i = 0; i < state.dataArray.length; i++) {
+    const v = (state.dataArray[i] - 128) / 128;
+    sum += v * v;
+  }
+  return Math.sqrt(sum / state.dataArray.length);
+}
+
+function getPitch() {
+  // Simple autocorrelation-based pitch estimate
+  const buf = state.dataArray;
+  const len = buf.length;
+  let maxCorr = 0, bestOffset = -1;
+  const minPeriod = Math.floor(state.audioCtx.sampleRate / 800); // max 800Hz
+  const maxPeriod = Math.floor(state.audioCtx.sampleRate / 80);  // min 80Hz
+
+  for (let offset = minPeriod; offset < Math.min(maxPeriod, len / 2); offset++) {
+    let corr = 0;
+    for (let i = 0; i < len / 2; i++) {
+      corr += Math.abs((buf[i] - 128) - (buf[i + offset] - 128));
+    }
+    corr = 1 - corr / (len / 2 * 128);
+    if (corr > maxCorr) {
+      maxCorr = corr;
+      bestOffset = offset;
+    }
+  }
+
+  if (bestOffset > 0 && maxCorr > 0.1) {
+    return state.audioCtx.sampleRate / bestOffset;
+  }
+  return 0;
+}
+
+// ============ METERS ============
+function updateMeters(volume, pitch) {
+  const volPct = Math.min(volume * 300, 100);
+  const volFill = document.getElementById('volFill');
+  volFill.style.width = volPct + '%';
+
+  const volVal = document.getElementById('volValue');
+  if (volume < 0.03) {
+    volFill.style.background = 'var(--text-dim)';
+    volVal.textContent = 'silent';
+    volVal.style.color = 'var(--text-dim)';
+  } else if (volume < 0.08) {
+    volFill.style.background = 'var(--warning)';
+    volVal.textContent = 'quiet';
+    volVal.style.color = 'var(--warning)';
+  } else if (volume < 0.35) {
+    volFill.style.background = 'var(--success)';
+    volVal.textContent = 'good';
+    volVal.style.color = 'var(--success)';
+  } else {
+    volFill.style.background = 'var(--danger)';
+    volVal.textContent = 'loud!';
+    volVal.style.color = 'var(--danger)';
+  }
+
+  const pitchFill = document.getElementById('pitchFill');
+  const pitchVal = document.getElementById('pitchValue');
+  if (pitch > 0) {
+    const pitchPct = Math.min(((pitch - 80) / 720) * 100, 100);
+    pitchFill.style.width = pitchPct + '%';
+    pitchVal.textContent = Math.round(pitch) + 'Hz';
+    pitchVal.style.color = state.animal === 'cat' ? 'var(--cat-light)' : 'var(--dog-light)';
+
+    const accent = state.animal === 'cat' ? 'var(--cat-primary)' : 'var(--dog-primary)';
+    pitchFill.style.background = accent;
+  } else {
+    pitchFill.style.width = '0%';
+    pitchVal.textContent = '—';
+    pitchVal.style.color = 'var(--text-dim)';
+  }
+}
+
+// ============ FEEDBACK ENGINE ============
+function generateFeedback(volume, pitch) {
+  // Priority: silence → volume → pitch → duration → shape
+  if (volume < 0.03) {
+    return { message: 'Listening...', icon: '🔇', hint: 'make a sound to begin', category: 'volume' };
+  }
+  if (volume < 0.08) {
+    return { message: 'Too quiet!', icon: '🔈', hint: 'project your voice more', category: 'volume' };
+  }
+  if (volume > 0.4) {
+    return { message: 'Too loud!', icon: '📢', hint: 'easy there, tiger', category: 'volume' };
+  }
+
+  if (state.animal === 'cat') {
+    return generateMeowFeedback(volume, pitch);
+  } else {
+    return generateBarkFeedback(volume, pitch);
+  }
+}
+
+function generateMeowFeedback(volume, pitch) {
+  const duration = state.isMakingSound ? Date.now() - state.soundStartTime : 0;
+  const hist = state.pitchHistory;
+
+  if (pitch > 0 && pitch < 200) {
+    return { message: 'Go higher!', icon: '⬆️', hint: 'meows live in the 250-500Hz range', category: 'pitch' };
+  }
+
+  if (duration > 0 && duration < 300) {
+    return { message: 'Hold it longer', icon: '⏳', hint: 'stretch out the meee part', category: 'duration' };
+  }
+
+  if (hist.length > 8) {
+    const firstHalf = hist.slice(0, Math.floor(hist.length/2));
+    const secondHalf = hist.slice(Math.floor(hist.length/2));
+    const avgFirst = firstHalf.reduce((a,b)=>a+b,0)/firstHalf.length;
+    const avgSecond = secondHalf.reduce((a,b)=>a+b,0)/secondHalf.length;
+
+    if (avgSecond > avgFirst * 0.95) {
+      return { message: 'End lower: owh ↓', icon: '📉', hint: 'let the pitch drop at the end', category: 'shape' };
+    }
+
+    if (duration > 500 && avgFirst > 200 && avgSecond < avgFirst * 0.85) {
+      return { message: 'Good meow shape! 🐱', icon: '✨', hint: 'keep going!', category: 'success' };
+    }
+  }
+
+  if (duration > 400 && pitch > 200) {
+    return { message: 'Nice start! Now drop ↓', icon: '🎵', hint: 'meee is good, add the owh', category: 'shape' };
+  }
+
+  return { message: 'Try: meee-owh', icon: '🐱', hint: 'start high, end low', category: 'shape' };
+}
+
+function generateBarkFeedback(volume, pitch) {
+  const duration = state.isMakingSound ? Date.now() - state.soundStartTime : 0;
+
+  if (duration > 600) {
+    return { message: 'Too long!', icon: '✂️', hint: 'barks are short & punchy', category: 'duration' };
+  }
+
+  if (volume < 0.15) {
+    return { message: 'More volume!', icon: '📣', hint: 'barks need power', category: 'volume' };
+  }
+
+  if (duration > 0 && duration < 80) {
+    return { message: 'Stronger start', icon: '💥', hint: 'hit it harder', category: 'shape' };
+  }
+
+  if (duration > 80 && duration < 500 && volume > 0.15) {
+    return { message: 'Good bark snap! 🐕', icon: '⚡', hint: 'that\'s the energy!', category: 'success' };
+  }
+
+  return { message: 'Quick & sharp!', icon: '🐶', hint: 'short burst of sound', category: 'shape' };
+}
+
+function setFeedback(fb) {
+  const card = document.getElementById('feedbackCard');
+  const icon = document.getElementById('feedbackIcon');
+  const text = document.getElementById('feedbackText');
+  const hint = document.getElementById('feedbackHint');
+
+  icon.textContent = fb.icon;
+  text.textContent = fb.message;
+  hint.textContent = fb.hint;
+
+  card.classList.toggle('success-glow', fb.category === 'success');
+}
+
+// ============ ATTEMPT EVALUATION ============
+function evaluateAttempt() {
+  const hist = state.pitchHistory;
+  if (hist.length < 3) return;
+
+  let good = false;
+
+  if (state.animal === 'cat') {
+    const duration = hist.length * 20; // rough
+    const firstHalf = hist.slice(0, Math.floor(hist.length/2));
+    const secondHalf = hist.slice(Math.floor(hist.length/2));
+    const avgFirst = firstHalf.reduce((a,b)=>a+b,0)/firstHalf.length;
+    const avgSecond = secondHalf.reduce((a,b)=>a+b,0)/secondHalf.length;
+    if (avgFirst > 180 && avgSecond < avgFirst * 0.9 && duration > 300) {
+      good = true;
+    }
+  } else {
+    const duration = hist.length * 20;
+    if (duration < 500 && duration > 50) {
+      good = true;
+    }
+  }
+
+  if (good && state.score < 5) {
+    state.score++;
+    updateScoreDots();
+    if (state.score >= 5) {
+      celebrate();
+    }
+  }
+}
+
+function updateScoreDots() {
+  const dots = document.querySelectorAll('.score-dot');
+  dots.forEach((d, i) => {
+    d.classList.toggle('filled', i < state.score);
+  });
+}
+
+function celebrate() {
+  const container = document.getElementById('confetti');
+  const colors = state.animal === 'cat'
+    ? ['#ff6b9d', '#ffb8d4', '#e64980', '#ffd43b', '#69db7c']
+    : ['#ffa94d', '#ffd8a8', '#e8590c', '#ffd43b', '#69db7c'];
+
+  for (let i = 0; i < 50; i++) {
+    const piece = document.createElement('div');
+    piece.className = 'confetti-piece';
+    piece.style.left = Math.random() * 100 + '%';
+    piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+    piece.style.animationDelay = Math.random() * 0.5 + 's';
+    piece.style.animationDuration = (1 + Math.random()) + 's';
+    container.appendChild(piece);
+  }
+
+  setTimeout(() => {
+    container.innerHTML = '';
+    state.score = 0;
+    updateScoreDots();
+  }, 2500);
+}
+
+// ============ INIT ============
+window.addEventListener('resize', () => {
+  if (state.practicing) drawTargetShape();
+});
+</script>
+
+</body>
+</html>
