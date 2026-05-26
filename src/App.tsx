@@ -7,10 +7,12 @@ import { Meters } from './components/Meters';
 import { FeedbackCard } from './components/FeedbackCard';
 import { Confetti } from './components/Confetti';
 import { KeyModal } from './components/KeyModal';
+import { VoicePicker } from './components/VoicePicker';
+import { PersonaToggle } from './components/PersonaToggle';
 import { useAudioAnalyser } from './hooks/useAudioAnalyser';
 import { SoundCriticAgent } from './agent';
 import { getStoredKey, storeKey } from './apiKey';
-import type { Animal, Phase, Rating } from './types';
+import { DEFAULT_VOICE, type Animal, type PersonaMode, type Phase, type Rating, type Voice } from './types';
 
 const RECORD_MS = 3000;
 
@@ -23,15 +25,21 @@ export function App() {
   const [micError, setMicError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [keyModalOpen, setKeyModalOpen] = useState(false);
+  const [voice, setVoice] = useState<Voice>(DEFAULT_VOICE);
+  const [persona, setPersona] = useState<PersonaMode>('ramsay');
 
   const analyser = useAudioAnalyser();
   const agentRef = useRef<SoundCriticAgent | null>(null);
   const animalRef = useRef<Animal>(animal);
+  const voiceRef = useRef<Voice>(voice);
+  const personaRef = useRef<PersonaMode>(persona);
   const pendingKeyResolveRef = useRef<((key: string) => void) | null>(null);
   const recordTimerRef = useRef<number | null>(null);
   const countdownTimerRef = useRef<number | null>(null);
 
   useEffect(() => { animalRef.current = animal; }, [animal]);
+  useEffect(() => { voiceRef.current = voice; }, [voice]);
+  useEffect(() => { personaRef.current = persona; }, [persona]);
 
   const requestApiKey = useCallback((): Promise<string> => {
     const existing = getStoredKey();
@@ -79,10 +87,10 @@ export function App() {
         const dots = Math.min(5, Math.round(r.score / 2));
         setScore(dots);
         if (r.score >= 9) setConfettiBurst((b) => b + 1);
-        setPhase('result');
+        setPhase('speaking');
       },
       onAgentSpeechEnd: () => {
-        setPhase((p) => (p === 'result' || p === 'evaluating' ? 'ready' : p));
+        setPhase((p) => (p === 'speaking' || p === 'evaluating' ? 'result' : p));
       },
       onError: (e) => {
         console.error('[agent error]', e);
@@ -90,7 +98,7 @@ export function App() {
     });
 
     try {
-      await agent.connect(apiKey);
+      await agent.connect(apiKey, voiceRef.current, personaRef.current);
     } catch (e) {
       console.error(e);
       setMicError('⚠ Agent connection failed — check your key');
@@ -130,7 +138,7 @@ export function App() {
   const handlePracticeClick = useCallback(() => {
     if (phase === 'idle') {
       void bootSession();
-    } else if (phase === 'ready') {
+    } else if (phase === 'ready' || phase === 'result') {
       startRecording();
     }
   }, [phase, bootSession, startRecording]);
@@ -140,6 +148,16 @@ export function App() {
     setAnimal(next);
     agentRef.current?.notifyAnimalSwitch(next);
   }, [animal]);
+
+  const handleVoiceChange = useCallback((next: Voice) => {
+    setVoice(next);
+    agentRef.current?.setVoice(next);
+  }, []);
+
+  const handlePersonaChange = useCallback((next: PersonaMode) => {
+    setPersona(next);
+    agentRef.current?.setPersona(next);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -162,8 +180,12 @@ export function App() {
         return { label: `Listening… ${countdown ?? ''}s`, disabled: true, listening: true, theme };
       case 'evaluating':
         return { label: 'Judging…', disabled: true, listening: true, theme };
-      case 'result':
+      case 'speaking':
         return { label: 'Speaking…', disabled: true, listening: true, theme };
+      case 'result':
+        return { label: animal === 'cat' ? 'Tap to Meow Again' : 'Tap to Bark Again', disabled: false, listening: false, theme };
+      default:
+        return { label: '', disabled: true, listening: false, theme };
     }
   }, [phase, animal, countdown]);
 
@@ -200,6 +222,18 @@ export function App() {
         </div>
 
         <div className={`mic-status ${micError ? 'error' : ''}`}>{micError ?? ''}</div>
+
+        <VoicePicker
+          value={voice}
+          disabled={phase === 'connecting' || phase === 'recording' || phase === 'evaluating' || phase === 'speaking'}
+          onChange={handleVoiceChange}
+        />
+
+        <PersonaToggle
+          value={persona}
+          disabled={phase === 'connecting' || phase === 'recording' || phase === 'evaluating' || phase === 'speaking'}
+          onChange={handlePersonaChange}
+        />
 
         <div className="practice-area">
           <button

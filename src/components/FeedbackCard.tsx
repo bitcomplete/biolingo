@@ -33,13 +33,14 @@ function viewForPhase(phase: Phase, rating: Rating | null): View {
       return { icon: '👂', text: 'Listening…', hint: 'make your sound now', ringClass: 'active', showScore: false, success: false };
     case 'evaluating':
       return { icon: '🤔', text: 'The critic is judging…', hint: 'brace yourself', ringClass: 'thinking', showScore: false, success: false };
+    case 'speaking':
     case 'result':
       if (rating) {
         return {
           icon: CATEGORY_ICON[rating.category] || '🎭',
           text: rating.comment,
-          hint: rating.category.replace(/_/g, ' '),
-          ringClass: '',
+          hint: phase === 'speaking' ? 'the verdict is being delivered…' : rating.category.replace(/_/g, ' '),
+          ringClass: phase === 'speaking' ? 'thinking' : '',
           showScore: true,
           success: rating.score >= 7,
         };
