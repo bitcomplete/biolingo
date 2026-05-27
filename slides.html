@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Biolingo — Slides</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #1a1520;
+  --surface: #241e2e;
+  --surface-2: #2e2639;
+  --cat: #ff6b9d;
+  --dog: #ffa94d;
+  --text: #f0eaf5;
+  --text-dim: #9a8faa;
+  --success: #69db7c;
+  --warning: #ffd43b;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Fredoka', sans-serif;
+  overflow: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 900px 600px at 20% 30%, #ff6b9d18 0%, transparent 70%),
+    radial-gradient(ellipse 800px 700px at 80% 70%, #ffa94d12 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.deck {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.slide {
+  position: absolute;
+  inset: 0;
+  padding: 64px 80px;
+  display: none;
+  flex-direction: column;
+  opacity: 0;
+  transition: opacity .4s ease;
+}
+
+.slide.active {
+  display: flex;
+  opacity: 1;
+}
+
+/* === Slide 1 — Title === */
+.slide-title {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.slide-title .eyebrow {
+  font-family: 'Space Mono', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 24px;
+}
+
+.slide-title h1 {
+  font-size: 140px;
+  font-weight: 700;
+  line-height: 1;
+  background: linear-gradient(135deg, var(--cat), var(--dog));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 12px;
+}
+
+.slide-title .tagline {
+  font-size: 26px;
+  color: var(--text-dim);
+  font-weight: 500;
+  margin-bottom: 64px;
+}
+
+.slide-title .tagline strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.slide-title .team {
+  display: flex;
+  gap: 36px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 56px;
+}
+
+.team-member {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.team-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--surface-2), var(--surface));
+  border: 2px solid var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+}
+
+.team-name {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.team-role {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  background: var(--surface);
+  border: 1.5px solid var(--surface-2);
+  border-radius: 999px;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.badge .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 3px #69db7c22;
+}
+
+/* === Slide 2 — About === */
+.slide-about {
+  display: none;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.slide-about.active { display: flex; }
+
+.about-pitch {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.35;
+  max-width: 1000px;
+}
+
+.about-pitch strong {
+  background: linear-gradient(135deg, var(--cat), var(--dog));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.about-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  flex: 1;
+}
+
+.about-card {
+  background: var(--surface);
+  border: 2px solid var(--surface-2);
+  border-radius: 20px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.about-card-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.about-card-title {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  background: linear-gradient(135deg, var(--cat), var(--dog));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.about-card-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.about-card-list li {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  font-family: 'Space Mono', monospace;
+  padding-left: 18px;
+  position: relative;
+}
+
+.about-card-list li::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  color: var(--cat);
+  font-weight: 700;
+}
+
+.about-card-list li strong {
+  color: var(--text);
+  font-weight: 700;
+  font-family: 'Fredoka', sans-serif;
+}
+
+/* === Slide 3 — Roadmap + Raise === */
+.slide-roadmap {
+  display: none;
+  flex-direction: column;
+}
+
+.slide-roadmap.active { display: flex; }
+
+.slide-header {
+  margin-bottom: 32px;
+}
+
+.slide-header .eyebrow {
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.slide-header h2 {
+  font-size: 56px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--cat), var(--dog));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.roadmap-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  flex: 1;
+  margin-bottom: 24px;
+}
+
+.roadmap-card {
+  background: var(--surface);
+  border: 2px solid var(--surface-2);
+  border-radius: 20px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.roadmap-card.now { border-color: var(--success); }
+.roadmap-card.now::before {
+  content: 'SHIPPED';
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: var(--success);
+  background: #69db7c1a;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.roadmap-emoji { font-size: 40px; }
+
+.roadmap-quarter {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.roadmap-title {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.roadmap-desc {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  font-family: 'Space Mono', monospace;
+}
+
+.raise-box {
+  background: linear-gradient(135deg, #ff6b9d1a, #ffa94d12);
+  border: 2px solid var(--cat);
+  border-radius: 20px;
+  padding: 24px 32px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.raise-amount {
+  font-size: 56px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--cat), var(--dog));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
+
+.raise-detail {
+  flex: 1;
+}
+
+.raise-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.raise-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.raise-sub {
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+/* === Slide 3 — Demo === */
+.slide-demo {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.slide-demo .eyebrow {
+  font-family: 'Space Mono', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 24px;
+}
+
+.slide-demo h2 {
+  font-size: 120px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--cat), var(--dog));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 24px;
+}
+
+.demo-frame {
+  width: min(820px, 80vw);
+  height: min(420px, 50vh);
+  border-radius: 24px;
+  background: var(--surface);
+  border: 2px dashed var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+  color: var(--text-dim);
+  font-family: 'Space Mono', monospace;
+}
+
+.demo-frame .mic {
+  font-size: 80px;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+.demo-frame .placeholder-title {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.demo-frame .placeholder-sub {
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.demo-url {
+  margin-top: 24px;
+  font-family: 'Space Mono', monospace;
+  font-size: 16px;
+  color: var(--text-dim);
+  background: var(--surface);
+  padding: 12px 24px;
+  border-radius: 12px;
+  border: 1.5px solid var(--surface-2);
+}
+
+.demo-url strong {
+  color: var(--text);
+}
+
+/* === Chrome === */
+.chrome {
+  position: fixed;
+  bottom: 24px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 40px;
+  pointer-events: none;
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.chrome .dots {
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.chrome .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: all .3s;
+  border: none;
+  padding: 0;
+}
+
+.chrome .dot.active {
+  background: linear-gradient(135deg, var(--cat), var(--dog));
+  transform: scale(1.4);
+}
+
+.chrome .nav-hint {
+  opacity: .5;
+}
+
+@media (max-width: 900px) {
+  .slide { padding: 32px; }
+  .slide-title h1, .slide-demo h2 { font-size: 80px; }
+  .slide-header h2 { font-size: 36px; }
+  .roadmap-grid { grid-template-columns: repeat(2, 1fr); }
+  .raise-box { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .raise-amount { font-size: 40px; }
+}
+</style>
+</head>
+<body>
+
+<div class="deck">
+  <!-- Slide 1: Title -->
+  <section class="slide slide-title active" data-slide="1">
+    <div class="eyebrow">A BitComplete Hackathon Project · 2026</div>
+    <h1>Biolingo</h1>
+    <p class="tagline">Duolingo, <strong>but for talking to your cat</strong></p>
+
+    <div class="team">
+      <div class="team-member">
+        <div class="team-avatar">🐱</div>
+        <div class="team-name">Elis</div>
+      </div>
+      <div class="team-member">
+        <div class="team-avatar">🐶</div>
+        <div class="team-name">Gui</div>
+      </div>
+      <div class="team-member">
+        <div class="team-avatar">🎨</div>
+        <div class="team-name">Matheus</div>
+      </div>
+      <div class="team-member">
+        <div class="team-avatar">🦜</div>
+        <div class="team-name">Nicolle</div>
+      </div>
+      <div class="team-member">
+        <div class="team-avatar">🐸</div>
+        <div class="team-name">Yanting</div>
+      </div>
+    </div>
+
+    <div class="badge">
+      <span class="dot"></span>
+      Built in 24 hours
+    </div>
+  </section>
+
+  <!-- Slide 2: About -->
+  <section class="slide slide-about" data-slide="2">
+    <header class="slide-header">
+      <div class="eyebrow">What we built</div>
+      <h2>The pitch</h2>
+    </header>
+
+    <p class="about-pitch">
+      Real lessons, <strong>real acoustic targets</strong>, and an AI coach that <strong>listens and talks back</strong>.
+    </p>
+
+    <div class="about-grid">
+      <div class="about-card">
+        <div class="about-card-label">How it works</div>
+        <div class="about-card-title">A pronunciation app for animal sounds</div>
+        <ul class="about-card-list">
+          <li>Single-page React app — <strong>three routes</strong>: home, lesson, roadmap</li>
+          <li>Each lesson has acoustic targets: <strong>pitch (Hz), volume, duration</strong>, and sometimes a required number of bursts</li>
+          <li>Microphone runs through an <strong>AMDF pitch detector</strong> with amplitude normalization — no false readings on silence</li>
+          <li>An OpenAI realtime voice agent grades every attempt and <strong>speaks back in character</strong></li>
+        </ul>
+      </div>
+
+      <div class="about-card">
+        <div class="about-card-label">Where AI shows up</div>
+        <div class="about-card-title">No fine-tuning. No custom models.</div>
+        <ul class="about-card-list">
+          <li><strong>OpenAI Realtime API (WebRTC)</strong> — listens to user, speaks coaching back, even vocalizes demo sounds. One bidirectional session.</li>
+          <li><strong>Structured tool calls</strong> — model returns a rating object <em>and</em> a spoken verdict in the same turn</li>
+          <li><strong>Per-lesson instructions</strong> — each lesson hot-swaps the agent's system prompt with its specific rubric. One persistent session, lesson-specific grading.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Slide 3: Roadmap + Raise -->
+  <section class="slide slide-roadmap" data-slide="3">
+    <header class="slide-header">
+      <div class="eyebrow">Where this goes</div>
+      <h2>Roadmap</h2>
+    </header>
+
+    <div class="roadmap-grid">
+      <div class="roadmap-card now">
+        <div class="roadmap-emoji">🐱🐶</div>
+        <div class="roadmap-quarter">Q2 2026 · Now</div>
+        <div class="roadmap-title">Cats & Dogs 101</div>
+        <div class="roadmap-desc">26 lessons, real acoustic targets, AI voice coach. Browser-based, no install.</div>
+      </div>
+
+      <div class="roadmap-card">
+        <div class="roadmap-emoji">🦜</div>
+        <div class="roadmap-quarter">Q3 2026</div>
+        <div class="roadmap-title">Birds, Cows & Frogs</div>
+        <div class="roadmap-desc">Expanded species library. Pitch-overlay grading. Streaks, leaderboards, share cards.</div>
+      </div>
+
+      <div class="roadmap-card">
+        <div class="roadmap-emoji">📱</div>
+        <div class="roadmap-quarter">Q4 2026</div>
+        <div class="roadmap-title">Native iOS & Android</div>
+        <div class="roadmap-desc">Offline lessons, push notifications, daily challenge. Family plans for households with multiple pets.</div>
+      </div>
+
+      <div class="roadmap-card">
+        <div class="roadmap-emoji">🌍</div>
+        <div class="roadmap-quarter">2027</div>
+        <div class="roadmap-title">Cross-species fluency</div>
+        <div class="roadmap-desc">Conversation mode. Pet-to-human translator companion app. Veterinary partnerships.</div>
+      </div>
+    </div>
+
+    <div class="raise-box">
+      <div class="raise-amount">$8.7M</div>
+      <div class="raise-detail">
+        <div class="raise-label">Seed Round · Open</div>
+        <div class="raise-title">We're raising to build the world's first inter-species language platform</div>
+        <div class="raise-sub">18-month runway · Team scale-up · Native apps · ML model training on our own audio corpus</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Slide 4: Demo -->
+  <section class="slide slide-demo" data-slide="4">
+    <div class="eyebrow">Enough talk</div>
+    <h2>Let's meow.</h2>
+
+    <div class="demo-frame">
+      <div class="mic">🎤</div>
+      <div class="placeholder-title">Live demo</div>
+      <div class="placeholder-sub">switch tab to the app</div>
+    </div>
+
+    <div class="demo-url">
+      <strong>http://localhost:5173</strong>
+    </div>
+  </section>
+</div>
+
+<div class="chrome">
+  <div class="nav-hint">← → or space to advance</div>
+  <div class="dots">
+    <button class="dot active" data-go="1" aria-label="Slide 1"></button>
+    <button class="dot" data-go="2" aria-label="Slide 2"></button>
+    <button class="dot" data-go="3" aria-label="Slide 3"></button>
+    <button class="dot" data-go="4" aria-label="Slide 4"></button>
+  </div>
+  <div class="nav-hint">Biolingo · Hackathon 2026</div>
+</div>
+
+<script>
+const slides = document.querySelectorAll('.slide');
+const dots = document.querySelectorAll('.chrome .dot');
+let current = 0;
+
+function go(i) {
+  current = Math.max(0, Math.min(slides.length - 1, i));
+  slides.forEach((s, idx) => s.classList.toggle('active', idx === current));
+  dots.forEach((d, idx) => d.classList.toggle('active', idx === current));
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+    e.preventDefault();
+    go(current + 1);
+  } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+    e.preventDefault();
+    go(current - 1);
+  } else if (e.key === 'Home') {
+    go(0);
+  } else if (e.key === 'End') {
+    go(slides.length - 1);
+  }
+});
+
+dots.forEach((d) => {
+  d.addEventListener('click', () => go(parseInt(d.dataset.go, 10) - 1));
+});
+</script>
+
+</body>
+</html>
