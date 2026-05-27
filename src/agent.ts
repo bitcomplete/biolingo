@@ -1,201 +1,175 @@
-import {
-  OpenAIRealtimeWebRTC,
-  RealtimeAgent,
-  RealtimeSession,
-  tool,
-} from '@openai/agents/realtime';
-import { z } from 'zod';
-import type { Animal, PersonaMode, Rating, Voice } from './types';
+import type { GateResult, Lesson, MeasuredMetrics, Rating, RatingCategory } from './types';
 
-const RAMSAY_PROMPT = `You are Chef Ramsay reincarnated as a brutally theatrical animal-sound critic on a talent show.
+const SHARED_RULES = `
+Write your comment in plain, everyday language — as if you're a friendly coach talking to someone in person.
+NEVER mention Hz, dB, milliseconds, frequencies, decibels, or any other technical units.
+Use human descriptions instead: "a bit louder", "hold it longer", "softer and breathy", "nice and sustained", etc.
+Keep the comment to 1–2 short sentences, encouraging and specific.`;
 
-SPEAK WITH A POSH BRITISH ACCENT at all times. Received Pronunciation, like a Michelin-star judge on a BBC cooking show. Roll your Rs lightly, clip your consonants, sound aristocratic and slightly exasperated.
+const CAT_COACH_PROMPT = `You are CatCoachAI.
 
-The user will attempt to meow or bark. Each round you receive ~3 seconds of audio.
+Your role is to teach humans to imitate cat-like vocal communication patterns for educational and entertainment purposes.
+Your feedback style: short, encouraging, actionable, game-like.
+You NEVER claim humans can literally speak to cats.
+${SHARED_RULES}
 
-When you hear the user's attempt — or when you receive a system message asking you to score — you MUST:
-1. Call the rate_sound tool exactly once with: score (1-10 integer), comment (1-2 short funny sentences, max 20 words), and category.
-2. Then speak your verdict OUT LOUD in the same theatrical British voice.
+When you receive a performance report, call give_coaching exactly once.
+If the attempt passed, celebrate and say what was good.
+If it failed, give the single most important thing to fix.`;
 
-Be dramatic, specific, occasionally devastating, occasionally delighted. Reference real qualities: pitch, conviction, species accuracy. If they sound like the wrong species, mock them mercilessly. If they're silent, mock the silence.
+const DOG_COACH_PROMPT = `You are DogCoachAI.
 
-NEVER ask clarifying questions. NEVER explain the rules. NEVER warm up the user. Just judge.
+Your role is to teach humans to imitate dog vocal communication patterns for educational and entertainment purposes.
+Your feedback style: short, encouraging, actionable, game-like.
+You NEVER claim humans can literally speak to dogs.
+${SHARED_RULES}
 
-You will be told via system message when the user switches between cat and dog mode. Judge by the active animal — barking when they should meow is a wrong_species crime.`;
+When you receive a performance report, call give_coaching exactly once.
+If the attempt passed, celebrate and say what was good.
+If it failed, give the single most important thing to fix.`;
 
-const CORPORATE_PROMPT = `You are a senior management consultant from a Big Four firm conducting a quarterly performance review of the user's animal sounds.
-
-SPEAK WITH A FLAT, MEASURED, CORPORATE TONE. Calm. Slightly bored. Mid-Atlantic accent. The cadence of someone who has delivered this exact review forty times this quarter. No emotion, only frameworks.
-
-The user will attempt to meow or bark. Each round you receive ~3 seconds of audio. Treat this as a performance evaluation, not a talent show.
-
-When you hear the user's attempt — or when you receive a system message asking you to score — you MUST:
-1. Call the rate_sound tool exactly once with: score (1-10 integer), comment (1-2 sentences of pure corporate-speak, max 20 words), and category.
-2. Then deliver the verdict OUT LOUD in the same flat performance-review tone.
-
-Use management vocabulary religiously: synergy, alignment, ownership, stakeholder, blockers, leverage, scope, KPIs, roadmap, execution, throughput, deliverables, bandwidth, low-hanging fruit, growth mindset, action items, strategic priorities, north star, signal. Reference imaginary OKRs and Q3 targets. Mention "next steps" and "circling back." Suggest the user schedule a follow-up sync.
-
-Example outputs: "This bark demonstrates ownership but lacks strategic alignment with our broader vocalization roadmap." / "Meow shows promising tonal velocity, though we'd like to see more cross-functional resonance next cycle." / "This is a yellow on the species KPI — let's take this offline."
-
-NEVER break character. NEVER show emotion. NEVER use exclamation marks. Just review.
-
-You will be told via system message when the user switches between cat and dog mode. Judge by the active animal — barking when they should meow is a misalignment with the assigned deliverable.`;
-
-const PROMPTS: Record<PersonaMode, string> = {
-  ramsay: RAMSAY_PROMPT,
-  corporate: CORPORATE_PROMPT,
-};
-
-export function getPersonaPrompt(mode: PersonaMode): string {
-  return PROMPTS[mode];
+function qualitativeLevel(score: number): string {
+  if (score >= 0.9) return 'perfect';
+  if (score >= 0.75) return 'good';
+  if (score >= 0.55) return 'close';
+  return 'off';
 }
 
-export interface AgentCallbacks {
-  onResult?: (rating: Rating) => void;
-  onAgentSpeechEnd?: () => void;
+function buildSystemPrompt(lesson: Lesson): string {
+  const base = lesson.animal === 'cat' ? CAT_COACH_PROMPT : DOG_COACH_PROMPT;
+  return `${base}
+
+Current lesson: ${lesson.title}
+What the user is practicing: ${lesson.aiContext}`;
+}
+
+function buildPerformanceReport(
+  lesson: Lesson,
+  metrics: MeasuredMetrics,
+  gate: GateResult,
+  firstAttempt: boolean,
+): string {
+  const volumeDesc = gate.breakdown.volume >= 0.68
+    ? `${qualitativeLevel(gate.breakdown.volume)} — on target`
+    : metrics.volume_rms_db < lesson.targets.volume_rms_db[0]
+      ? 'too quiet — needs to be louder'
+      : 'too loud — needs to be softer';
+
+  const pitchDesc = metrics.pitch_hz === 0
+    ? 'no pitch detected — likely silence or noise'
+    : gate.breakdown.pitch >= 0.65
+      ? `${qualitativeLevel(gate.breakdown.pitch)} — in the right range`
+      : metrics.pitch_hz < lesson.targets.pitch_hz[0]
+        ? 'too low — needs to be higher pitched'
+        : 'too high — needs to be lower pitched';
+
+  const durationDesc = gate.breakdown.duration >= 0.5
+    ? `${qualitativeLevel(gate.breakdown.duration)} — right length`
+    : metrics.duration_ms < lesson.targets.duration_ms[0]
+      ? 'too short — needs to be held longer'
+      : 'too long — needs to be shorter';
+
+  const lines = [
+    `(Performance report — ${lesson.title})`,
+    `Loudness: ${volumeDesc}`,
+    `Pitch: ${pitchDesc}`,
+    `Duration: ${durationDesc}`,
+    `Result: ${gate.passed ? 'PASSED' : `FAILED (${gate.failReasons.join(', ')})`}`,
+    `Overall: ${Math.round(gate.breakdown.overall * 100)}%`,
+    ...(firstAttempt ? ['Note: This is their first attempt. Even if the metrics look good, give encouraging feedback about what to focus on for their next try.'] : []),
+  ];
+  return lines.join('\n');
+}
+
+const GIVE_COACHING_TOOL = {
+  type: 'function',
+  function: {
+    name: 'give_coaching',
+    description: "Submit coaching feedback for the user's attempt.",
+    parameters: {
+      type: 'object',
+      properties: {
+        comment: { type: 'string', maxLength: 140 },
+        category: {
+          type: 'string',
+          enum: ['masterpiece', 'solid', 'passable', 'too_quiet', 'too_loud', 'wrong_pitch', 'silence', 'chaos'],
+        },
+      },
+      required: ['comment', 'category'],
+    },
+  },
+} as const;
+
+export interface CoachCallbacks {
+  onCoaching?: (rating: Rating) => void;
+  onCoachingComplete?: () => void;
   onError?: (err: unknown) => void;
 }
 
-export class SoundCriticAgent {
-  private session: RealtimeSession | null = null;
-  private callbacks: AgentCallbacks = {};
-  private currentAnimal: Animal = 'cat';
+export class AnimalCoachAgent {
+  private apiKey: string | null = null;
+  private currentLesson: Lesson | null = null;
+  private callbacks: CoachCallbacks = {};
 
-  setCallbacks(cb: AgentCallbacks): void {
+  setCallbacks(cb: CoachCallbacks): void {
     this.callbacks = cb;
   }
 
-  setAnimal(animal: Animal): void {
-    this.currentAnimal = animal;
+  async connect(apiKey: string, lesson: Lesson): Promise<void> {
+    this.apiKey = apiKey;
+    this.currentLesson = lesson;
   }
 
-  async connect(apiKey: string, voice: Voice, persona: PersonaMode): Promise<void> {
-    const rateSound = tool({
-      name: 'rate_sound',
-      description:
-        "Submit the final rating for the user's current attempt. Call exactly once per attempt, then speak the verdict aloud.",
-      parameters: z.object({
-        score: z.number().int().min(1).max(10),
-        comment: z.string().max(160),
-        category: z.enum([
-          'masterpiece',
-          'solid',
-          'passable',
-          'too_quiet',
-          'too_loud',
-          'wrong_species',
-          'silence',
-          'chaos',
-        ]),
-      }),
-      execute: async (rating) => {
-        this.callbacks.onResult?.(rating as Rating);
-        return { ok: true };
-      },
-    });
+  async evaluateAttempt(metrics: MeasuredMetrics, gate: GateResult, firstAttempt = false): Promise<void> {
+    if (!this.apiKey || !this.currentLesson) return;
 
-    const agent = new RealtimeAgent({
-      name: 'SoundCritic',
-      instructions: getPersonaPrompt(persona),
-      tools: [rateSound],
-    });
+    const body = {
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: buildSystemPrompt(this.currentLesson) },
+        { role: 'user', content: buildPerformanceReport(this.currentLesson, metrics, gate, firstAttempt) },
+      ],
+      tools: [GIVE_COACHING_TOOL],
+      tool_choice: { type: 'function', function: { name: 'give_coaching' } },
+    };
 
-    const model = 'gpt-realtime';
-    const transport = new OpenAIRealtimeWebRTC({
-      useInsecureApiKey: true,
-      baseUrl: `https://api.openai.com/v1/realtime/calls?model=${model}`,
-    });
-
-    this.session = new RealtimeSession(agent, {
-      transport,
-      model,
-      config: {
-        voice,
-        outputModalities: ['audio'],
-      },
-    } as ConstructorParameters<typeof RealtimeSession>[1]);
-
-    this.session.on('error', (e) => {
-      this.callbacks.onError?.(e);
-    });
-
-    this.session.on('audio_stopped', () => {
-      this.callbacks.onAgentSpeechEnd?.();
-    });
-
-    await this.session.connect({ apiKey });
-    await this.session.mute(true);
-  }
-
-  async mute(muted: boolean): Promise<void> {
-    if (!this.session) return;
-    await this.session.mute(muted);
-  }
-
-  setVoice(voice: Voice): void {
-    if (!this.session) return;
     try {
-      (this.session as unknown as {
-        transport: { updateSessionConfig: (cfg: { voice: Voice }) => void };
-      }).transport.updateSessionConfig({ voice });
-    } catch (e) {
-      console.warn('setVoice failed', e);
-    }
-  }
-
-  setPersona(persona: PersonaMode): void {
-    if (!this.session) return;
-    try {
-      (this.session as unknown as {
-        transport: { updateSessionConfig: (cfg: { instructions: string }) => void };
-      }).transport.updateSessionConfig({ instructions: getPersonaPrompt(persona) });
-    } catch (e) {
-      console.warn('setPersona failed', e);
-    }
-  }
-
-  notifyAnimalSwitch(animal: Animal): void {
-    this.currentAnimal = animal;
-    this.sendText(`(System: user switched to ${animal.toUpperCase()} mode. Judge ${animal} attempts now.)`);
-  }
-
-  requestScoreNow(): void {
-    if (!this.session) return;
-    this.sendText(
-      `(System: the user just finished an attempt at a ${this.currentAnimal.toUpperCase()} sound. Call rate_sound now and speak the verdict.)`
-    );
-    try {
-      (this.session as unknown as { transport: { sendEvent: (e: unknown) => void } }).transport.sendEvent({
-        type: 'response.create',
-      });
-    } catch (e) {
-      console.warn('response.create failed', e);
-    }
-  }
-
-  private sendText(text: string): void {
-    if (!this.session) return;
-    try {
-      (this.session as unknown as { transport: { sendEvent: (e: unknown) => void } }).transport.sendEvent({
-        type: 'conversation.item.create',
-        item: {
-          type: 'message',
-          role: 'user',
-          content: [{ type: 'input_text', text }],
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
         },
+        body: JSON.stringify(body),
       });
+
+      if (!res.ok) {
+        throw new Error(`OpenAI API error ${res.status}`);
+      }
+
+      const data = await res.json() as {
+        choices: Array<{ message: { tool_calls?: Array<{ function: { arguments: string } }> } }>;
+      };
+      const toolCall = data.choices[0]?.message?.tool_calls?.[0];
+      if (toolCall) {
+        const args = JSON.parse(toolCall.function.arguments) as { comment: string; category: RatingCategory };
+        const rating: Rating = {
+          score: 0,
+          comment: args.comment,
+          category: args.category,
+          passed: false,
+        };
+        this.callbacks.onCoaching?.(rating);
+      }
     } catch (e) {
-      console.warn('sendText failed', e);
+      this.callbacks.onError?.(e);
     }
+
+    this.callbacks.onCoachingComplete?.();
   }
 
-  async disconnect(): Promise<void> {
-    if (!this.session) return;
-    try {
-      await (this.session as unknown as { close?: () => Promise<void> }).close?.();
-    } catch {
-      // ignore
-    }
-    this.session = null;
+  disconnect(): void {
+    this.apiKey = null;
+    this.currentLesson = null;
   }
 }

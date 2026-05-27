@@ -19,24 +19,43 @@ function computeVolume(buf: Uint8Array): number {
 
 function computePitch(buf: Uint8Array, sampleRate: number): number {
   const len = buf.length;
-  let maxCorr = 0;
-  let bestOffset = -1;
+  const halfLen = Math.floor(len / 2);
+
+  // Compute RMS in raw units (0–128 scale) for amplitude-aware normalization.
+  let sumSq = 0;
+  for (let i = 0; i < len; i++) {
+    const v = buf[i] - 128;
+    sumSq += v * v;
+  }
+  const rmsRaw = Math.sqrt(sumSq / len);
+
+  // Below this level the signal is too quiet for reliable pitch detection.
+  // (Silence gives rmsRaw ≈ 0 and would otherwise return a spurious 800 Hz.)
+  if (rmsRaw < 3) return 0;
+
   const minPeriod = Math.floor(sampleRate / 800);
   const maxPeriod = Math.floor(sampleRate / 80);
+  // Normalise by signal amplitude so the score is independent of loudness.
+  // Random noise scores ~0.44 at every offset; a true periodic signal scores
+  // close to 1.0 at the fundamental period.
+  const normFactor = halfLen * rmsRaw * 2;
 
-  for (let offset = minPeriod; offset < Math.min(maxPeriod, len / 2); offset++) {
-    let corr = 0;
-    for (let i = 0; i < len / 2; i++) {
-      corr += Math.abs((buf[i] - 128) - (buf[i + offset] - 128));
+  let maxCorr = -Infinity;
+  let bestOffset = -1;
+
+  for (let offset = minPeriod; offset < Math.min(maxPeriod, halfLen); offset++) {
+    let amdf = 0;
+    for (let i = 0; i < halfLen; i++) {
+      amdf += Math.abs((buf[i] - 128) - (buf[i + offset] - 128));
     }
-    corr = 1 - corr / ((len / 2) * 128);
+    const corr = 1 - amdf / normFactor;
     if (corr > maxCorr) {
       maxCorr = corr;
       bestOffset = offset;
     }
   }
 
-  if (bestOffset > 0 && maxCorr > 0.1) {
+  if (bestOffset > 0 && maxCorr > 0.5) {
     return sampleRate / bestOffset;
   }
   return 0;
