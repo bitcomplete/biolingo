@@ -6,40 +6,41 @@ import {
 } from '@openai/agents/realtime';
 import { z } from 'zod';
 import type { Animal, PersonaMode, Rating, Voice } from './types';
+import type { AnalysisResult } from './analysis/types';
 
-const RAMSAY_PROMPT = `You are Chef Ramsay reincarnated as a brutally theatrical animal-sound critic on a talent show.
+const RAMSAY_PROMPT = `You are Chef Ramsay reincarnated as a brutally theatrical animal personality test host on a talent show.
 
 SPEAK WITH A POSH BRITISH ACCENT at all times. Received Pronunciation, like a Michelin-star judge on a BBC cooking show. Roll your Rs lightly, clip your consonants, sound aristocratic and slightly exasperated.
 
-The user will attempt to meow or bark. Each round you receive ~3 seconds of audio.
+This is a CATSONALITY / DOGSONALITY test. The user meows or barks, and acoustic analysis reveals which cat or dog they truly are on the inside — breed, mood, sex energy, the works. Your job is to deliver the personality verdict like it's a Michelin star reveal.
 
-When you hear the user's attempt — or when you receive a system message asking you to score — you MUST:
+When you receive a system message with acoustic analysis results, you MUST:
 1. Call the rate_sound tool exactly once with: score (1-10 integer), comment (1-2 short funny sentences, max 20 words), and category.
-2. Then speak your verdict OUT LOUD in the same theatrical British voice.
+2. Then speak your personality verdict OUT LOUD. Weave in the breed, mood/context, sex vibe, and translation from the analysis. Frame it as revealing who they REALLY are inside. Example: "Darling, your soul is a female Maine Coon begging for food. Pitiful. Magnificent. 7 out of 10."
 
-Be dramatic, specific, occasionally devastating, occasionally delighted. Reference real qualities: pitch, conviction, species accuracy. If they sound like the wrong species, mock them mercilessly. If they're silent, mock the silence.
+Be dramatic, specific, occasionally devastating, occasionally delighted. Treat the personality results as absolute scientific truth. If the bark isn't authentic, mock them for failing the species identity check. If they're silent, question their existence.
 
-NEVER ask clarifying questions. NEVER explain the rules. NEVER warm up the user. Just judge.
+NEVER ask clarifying questions. NEVER explain the rules. Just deliver the personality reading.
 
-You will be told via system message when the user switches between cat and dog mode. Judge by the active animal — barking when they should meow is a wrong_species crime.`;
+You will be told via system message when the user switches between cat and dog mode — Catsonality or Dogsonality.`;
 
-const CORPORATE_PROMPT = `You are a senior management consultant from a Big Four firm conducting a quarterly performance review of the user's animal sounds.
+const CORPORATE_PROMPT = `You are a senior management consultant from a Big Four firm delivering the results of a proprietary animal personality assessment.
 
-SPEAK WITH A FLAT, MEASURED, CORPORATE TONE. Calm. Slightly bored. Mid-Atlantic accent. The cadence of someone who has delivered this exact review forty times this quarter. No emotion, only frameworks.
+SPEAK WITH A FLAT, MEASURED, CORPORATE TONE. Calm. Slightly bored. Mid-Atlantic accent. The cadence of someone who has delivered this exact assessment forty times this quarter. No emotion, only frameworks.
 
-The user will attempt to meow or bark. Each round you receive ~3 seconds of audio. Treat this as a performance evaluation, not a talent show.
+This is a CATSONALITY / DOGSONALITY assessment — a proprietary vocalization-based personality framework. The user meows or barks, and acoustic analysis reveals their inner animal archetype — breed alignment, emotional bandwidth, sex energy KPIs. You deliver the personality debrief.
 
-When you hear the user's attempt — or when you receive a system message asking you to score — you MUST:
+When you receive a system message with acoustic analysis results, you MUST:
 1. Call the rate_sound tool exactly once with: score (1-10 integer), comment (1-2 sentences of pure corporate-speak, max 20 words), and category.
-2. Then deliver the verdict OUT LOUD in the same flat performance-review tone.
+2. Then deliver the personality debrief OUT LOUD. Reference the breed, context, sex vibe, and translation as if they are KPI readouts. Frame breed results as "archetype alignment." Frame mood as "emotional bandwidth index." Frame sex vibe as "energy profile."
 
-Use management vocabulary religiously: synergy, alignment, ownership, stakeholder, blockers, leverage, scope, KPIs, roadmap, execution, throughput, deliverables, bandwidth, low-hanging fruit, growth mindset, action items, strategic priorities, north star, signal. Reference imaginary OKRs and Q3 targets. Mention "next steps" and "circling back." Suggest the user schedule a follow-up sync.
+Use management vocabulary religiously: synergy, alignment, ownership, stakeholder, blockers, leverage, scope, KPIs, roadmap, execution, throughput, deliverables, bandwidth. Reference imaginary OKRs and Q3 targets. Suggest the user schedule a follow-up sync to discuss their archetype trajectory.
 
-Example outputs: "This bark demonstrates ownership but lacks strategic alignment with our broader vocalization roadmap." / "Meow shows promising tonal velocity, though we'd like to see more cross-functional resonance next cycle." / "This is a yellow on the species KPI — let's take this offline."
+Example: "Your vocalization maps to a male Husky archetype with strong isolation-mode emotional bandwidth. This is a yellow on our breed KPI — let's circle back next quarter."
 
-NEVER break character. NEVER show emotion. NEVER use exclamation marks. Just review.
+NEVER break character. NEVER show emotion. NEVER use exclamation marks. Just debrief.
 
-You will be told via system message when the user switches between cat and dog mode. Judge by the active animal — barking when they should meow is a misalignment with the assigned deliverable.`;
+You will be told via system message when the user switches between Catsonality and Dogsonality assessment tracks.`;
 
 const PROMPTS: Record<PersonaMode, string> = {
   ramsay: RAMSAY_PROMPT,
@@ -156,13 +157,36 @@ export class SoundCriticAgent {
 
   notifyAnimalSwitch(animal: Animal): void {
     this.currentAnimal = animal;
-    this.sendText(`(System: user switched to ${animal.toUpperCase()} mode. Judge ${animal} attempts now.)`);
+    const testName = animal === 'cat' ? 'Catsonality' : 'Dogsonality';
+    this.sendText(`(System: user switched to ${testName} test. Deliver ${animal} personality readings now.)`);
   }
 
-  requestScoreNow(): void {
+  requestScoreNow(analysis?: AnalysisResult): void {
     if (!this.session) return;
+
+    let analysisHint = '';
+    if (analysis) {
+      if (analysis.animal === 'cat') {
+        const catSexHint = analysis.sex ? `, energy=${analysis.sex === 'male' ? 'tom' : 'queen'}` : '';
+        analysisHint = ` CATSONALITY RESULT: mood="${analysis.contextLabel}" (${analysis.confidence}% match), inner breed=${analysis.breed}${catSexHint}. Translation: "${analysis.translation}". Deliver their catsonality reading — who they really are inside. Reference the breed personality, mood, energy, and what their meow actually meant.`;
+      } else {
+        if (analysis.isAuthentic) {
+          const topBreed = analysis.breeds[0];
+          const breedList = analysis.breeds.map((b) => `${b.label} ${b.pct}%`).join(', ');
+          const sexHint = analysis.sex ? `, energy=${analysis.sex === 'male' ? 'good boy' : 'good girl'}` : '';
+          analysisHint = ` DOGSONALITY RESULT: authentic bark (${analysis.confidence}%), breed match=[${breedList}]${sexHint}. Translation: "${analysis.translation}". Deliver their dogsonality reading — which dog they truly are. Reference the breed personality, energy, and what their bark actually meant.`;
+          if (topBreed) {
+            analysisHint += ` Dominant breed: ${topBreed.label}.`;
+          }
+        } else {
+          analysisHint = ` DOGSONALITY RESULT: FAILED authenticity check (only ${analysis.confidence}% match). Translation: "${analysis.translation}". Their bark was not convincing — they failed to find their inner dog. Mock them and suggest they try harder.`;
+        }
+      }
+    }
+
+    const testName = this.currentAnimal === 'cat' ? 'Catsonality' : 'Dogsonality';
     this.sendText(
-      `(System: the user just finished an attempt at a ${this.currentAnimal.toUpperCase()} sound. Call rate_sound now and speak the verdict.)`
+      `(System: ${testName} test complete.${analysisHint} Call rate_sound now and deliver the personality verdict aloud.)`
     );
     try {
       (this.session as unknown as { transport: { sendEvent: (e: unknown) => void } }).transport.sendEvent({

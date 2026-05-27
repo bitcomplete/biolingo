@@ -5,14 +5,18 @@ import { Waveform } from './components/Waveform';
 import { TargetShape } from './components/TargetShape';
 import { Meters } from './components/Meters';
 import { FeedbackCard } from './components/FeedbackCard';
+import { AnalysisCard } from './components/AnalysisCard';
 import { Confetti } from './components/Confetti';
 import { KeyModal } from './components/KeyModal';
 import { VoicePicker } from './components/VoicePicker';
 import { PersonaToggle } from './components/PersonaToggle';
 import { useAudioAnalyser } from './hooks/useAudioAnalyser';
+import { useAudioCapture } from './hooks/useAudioCapture';
 import { SoundCriticAgent } from './agent';
+import { analyzeAudio } from './analysis/matcher';
 import { getStoredKey, storeKey } from './apiKey';
 import { DEFAULT_VOICE, type Animal, type PersonaMode, type Phase, type Rating, type Voice } from './types';
+import type { AnalysisResult } from './analysis/types';
 
 const RECORD_MS = 3000;
 
@@ -27,8 +31,10 @@ export function App() {
   const [keyModalOpen, setKeyModalOpen] = useState(false);
   const [voice, setVoice] = useState<Voice>(DEFAULT_VOICE);
   const [persona, setPersona] = useState<PersonaMode>('ramsay');
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
 
   const analyser = useAudioAnalyser();
+  const capture = useAudioCapture();
   const agentRef = useRef<SoundCriticAgent | null>(null);
   const animalRef = useRef<Animal>(animal);
   const voiceRef = useRef<Voice>(voice);
@@ -116,7 +122,12 @@ export function App() {
     if (!agent) return;
     setPhase('recording');
     setRating(null);
+    setAnalysis(null);
     agent.mute(false);
+
+    if (analyser.stream) {
+      capture.startCapture(analyser.stream);
+    }
 
     let remaining = Math.ceil(RECORD_MS / 1000);
     setCountdown(remaining);
@@ -131,9 +142,17 @@ export function App() {
       setCountdown(null);
       await agent.mute(true);
       setPhase('evaluating');
-      agent.requestScoreNow();
+
+      const samples = await capture.stopCapture();
+      let result: AnalysisResult | null = null;
+      if (samples.length > 0) {
+        result = await analyzeAudio(samples, animalRef.current);
+        setAnalysis(result);
+      }
+
+      agent.requestScoreNow(result ?? undefined);
     }, RECORD_MS);
-  }, []);
+  }, [analyser.stream, capture]);
 
   const handlePracticeClick = useCallback(() => {
     if (phase === 'idle') {
@@ -171,19 +190,19 @@ export function App() {
     const theme = animal === 'cat' ? 'cat-theme' : 'dog-theme';
     switch (phase) {
       case 'idle':
-        return { label: animal === 'cat' ? 'Start Meow Practice' : 'Start Bark Practice', disabled: false, listening: false, theme };
+        return { label: animal === 'cat' ? 'Start Catsonality Test' : 'Start Dogsonality Test', disabled: false, listening: false, theme };
       case 'connecting':
         return { label: 'Connecting…', disabled: true, listening: true, theme };
       case 'ready':
-        return { label: animal === 'cat' ? 'Tap to Meow' : 'Tap to Bark', disabled: false, listening: false, theme };
+        return { label: animal === 'cat' ? 'Tap & Meow' : 'Tap & Bark', disabled: false, listening: false, theme };
       case 'recording':
         return { label: `Listening… ${countdown ?? ''}s`, disabled: true, listening: true, theme };
       case 'evaluating':
-        return { label: 'Judging…', disabled: true, listening: true, theme };
+        return { label: 'Analyzing your soul…', disabled: true, listening: true, theme };
       case 'speaking':
-        return { label: 'Speaking…', disabled: true, listening: true, theme };
+        return { label: 'Delivering verdict…', disabled: true, listening: true, theme };
       case 'result':
-        return { label: animal === 'cat' ? 'Tap to Meow Again' : 'Tap to Bark Again', disabled: false, listening: false, theme };
+        return { label: 'Try Again', disabled: false, listening: false, theme };
       default:
         return { label: '', disabled: true, listening: false, theme };
     }
@@ -196,8 +215,8 @@ export function App() {
     <>
       <div className="app">
         <header className="header fade-up">
-          <div className="logo">Paws & Practice</div>
-          <h1 className="title">Sound Critic</h1>
+          <div className="logo">BioLingo</div>
+          <h1 className="title">{animal === 'cat' ? 'Catsonality' : 'Dogsonality'} Test</h1>
         </header>
 
         <AnimalSelector animal={animal} disabled={animalSelectorDisabled} onChange={handleAnimalChange} />
@@ -207,9 +226,9 @@ export function App() {
         <div className="main">
           {!showPracticeUI ? (
             <div className="idle-state">
-              <span className="idle-emoji">🎤</span>
-              <div className="idle-text">Pick your animal & start practicing</div>
-              <div className="idle-sub">A theatrical AI critic awaits</div>
+              <span className="idle-emoji">{animal === 'cat' ? '🐱' : '🐶'}</span>
+              <div className="idle-text">What {animal} are you on the inside?</div>
+              <div className="idle-sub">Meow or bark — we'll tell you your breed, vibe & personality</div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -217,6 +236,7 @@ export function App() {
               <TargetShape animal={animal} />
               <Meters volume={analyser.frame.volume} pitch={analyser.frame.pitch} animal={animal} />
               <FeedbackCard phase={phase} rating={rating} />
+              <AnalysisCard result={analysis} visible={phase === 'result' || phase === 'speaking'} />
             </div>
           )}
         </div>

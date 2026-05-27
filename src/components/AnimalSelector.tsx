@@ -15,8 +15,8 @@ export function AnimalSelector({ animal, disabled, onChange }: Props) {
         onClick={() => onChange('cat')}
       >
         <span className="animal-emoji">🐱</span>
-        <span className="animal-label">Meow Coach</span>
-        <span className="animal-sub">meee → owh</span>
+        <span className="animal-label">Catsonality</span>
+        <span className="animal-sub">meow to reveal your inner cat</span>
       </button>
       <button
         className={`animal-btn dog ${animal === 'dog' ? 'active' : ''}`}
@@ -24,8 +24,8 @@ export function AnimalSelector({ animal, disabled, onChange }: Props) {
         onClick={() => onChange('dog')}
       >
         <span className="animal-emoji">🐶</span>
-        <span className="animal-label">Bark Practice</span>
-        <span className="animal-sub">short & sharp</span>
+        <span className="animal-label">Dogsonality</span>
+        <span className="animal-sub">bark to find your breed</span>
       </button>
     </div>
   );

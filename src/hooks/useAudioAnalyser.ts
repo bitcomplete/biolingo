@@ -6,6 +6,7 @@ export interface AudioAnalyser {
   start: () => Promise<void>;
   stop: () => void;
   active: boolean;
+  stream: MediaStream | null;
 }
 
 function computeVolume(buf: Uint8Array): number {
@@ -102,5 +103,5 @@ export function useAudioAnalyser(): AudioAnalyser {
     return () => stop();
   }, [stop]);
 
-  return { frame, start, stop, active };
+  return { frame, start, stop, active, stream: streamRef.current };
 }
