@@ -4,11 +4,14 @@ import { Waveform } from '../components/Waveform';
 import { TargetShape } from '../components/TargetShape';
 import { Meters } from '../components/Meters';
 import { FeedbackCard } from '../components/FeedbackCard';
+import { AnalysisCard } from '../components/AnalysisCard';
 import { Confetti } from '../components/Confetti';
 import { KeyModal } from '../components/KeyModal';
 import { ScoreDots } from '../components/ScoreDots';
 import { useAudioAnalyser } from '../hooks/useAudioAnalyser';
+import { useAudioCapture } from '../hooks/useAudioCapture';
 import { AnimalCoachAgent } from '../agent';
+import { analyzeAudio } from '../analysis/matcher';
 import { getStoredKey, storeKey } from '../apiKey';
 import { getLessonById, getNextLesson } from '../data/lessons';
 import { LESSON_SOUNDS } from '../data/sounds';
@@ -27,6 +30,7 @@ import type {
   Phase,
   Rating,
 } from '../types';
+import type { AnalysisResult } from '../analysis/types';
 
 const RECORD_MS = 4000;
 
@@ -47,8 +51,10 @@ export function LessonPage() {
   const [lastGate, setLastGate] = useState<GateResult | null>(null);
   const [lastMetrics, setLastMetrics] = useState<MeasuredMetrics | null>(null);
   const [xpEarned, setXpEarned] = useState<number | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
 
   const analyser = useAudioAnalyser();
+  const capture = useAudioCapture();
   const agentRef = useRef<AnimalCoachAgent | null>(null);
   const pendingKeyResolveRef = useRef<((key: string) => void) | null>(null);
   const recordTimerRef = useRef<number | null>(null);
@@ -153,9 +159,14 @@ export function LessonPage() {
     setLastGate(null);
     setLastMetrics(null);
     setXpEarned(null);
+    setAnalysis(null);
 
     capturedFramesRef.current = [];
     isCapturingRef.current = true;
+
+    if (analyser.stream) {
+      capture.startCapture(analyser.stream);
+    }
 
     let remaining = Math.ceil(RECORD_MS / 1000);
     setCountdown(remaining);
@@ -170,6 +181,13 @@ export function LessonPage() {
       setCountdown(null);
       isCapturingRef.current = false;
       setPhase('evaluating');
+
+      const samples = await capture.stopCapture();
+      if (samples.length > 0) {
+        analyzeAudio(samples, animal).then((result) => {
+          if (result) setAnalysis(result);
+        });
+      }
 
       // Compute metrics locally
       const frames = capturedFramesRef.current;
@@ -207,7 +225,7 @@ export function LessonPage() {
       // Send to agent — onCoaching will refine the comment, onCoachingComplete transitions to result
       void agent.evaluateAttempt(metrics, effectiveGate, isFirstAttempt);
     }, RECORD_MS);
-  }, [lesson]);
+  }, [lesson, animal, analyser.stream, capture]);
 
   const handlePracticeClick = useCallback(() => {
     if (phase === 'idle') {
@@ -358,6 +376,8 @@ export function LessonPage() {
                   />
                 </div>
               )}
+
+              <AnalysisCard result={analysis} visible={phase === 'result'} />
 
               {/* XP earned banner */}
               {phase === 'result' && xpEarned !== null && (
