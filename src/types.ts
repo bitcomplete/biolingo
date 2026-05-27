@@ -1,7 +1,5 @@
 export type Animal = 'cat' | 'dog';
 
-export type PersonaMode = 'ramsay' | 'corporate';
-
 export type Phase =
   | 'idle'
   | 'connecting'
@@ -17,7 +15,7 @@ export type RatingCategory =
   | 'passable'
   | 'too_quiet'
   | 'too_loud'
-  | 'wrong_species'
+  | 'wrong_pitch'
   | 'silence'
   | 'chaos';
 
@@ -25,6 +23,73 @@ export interface Rating {
   score: number;
   comment: string;
   category: RatingCategory;
+  passed: boolean;
+}
+
+// --- Lesson System ---
+
+export interface LessonTargets {
+  volume_rms_db: [number, number];
+  pitch_hz: [number, number];
+  duration_ms: [number, number];
+  attack_ms?: [number, number];
+  burst_count?: [number, number];
+  burst_spacing_ms?: [number, number];
+}
+
+export interface Lesson {
+  id: string;
+  animal: Animal;
+  phase: 1 | 2 | 3 | 4 | 5;
+  phaseTitle: string;
+  title: string;
+  description: string;
+  emoji: string;
+  instruction: string;
+  targets: LessonTargets;
+  xpReward: number;
+  aiContext: string;
+}
+
+export interface MeasuredMetrics {
+  volume_rms_db: number;
+  peak_db: number;
+  pitch_hz: number;
+  duration_ms: number;
+  attack_ms: number;
+  burst_count: number;
+  burst_spacing_ms: number;
+  silence_ratio: number;
+}
+
+export type FailReason =
+  | 'too_loud'
+  | 'too_quiet'
+  | 'wrong_pitch'
+  | 'too_short'
+  | 'too_long'
+  | 'silence';
+
+export interface ScoreBreakdown {
+  volume: number;
+  pitch: number;
+  cadence: number;
+  duration: number;
+  overall: number;
+}
+
+export interface GateResult {
+  passed: boolean;
+  failReasons: FailReason[];
+  breakdown: ScoreBreakdown;
+}
+
+export interface UserProgress {
+  xp: number;
+  completedLessons: string[];
+  bestScores: Record<string, number>;
+  streakDays: number;
+  lastPracticeDate: string;
 }
 
 export interface AudioFrame {
