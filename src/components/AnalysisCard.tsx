@@ -1,8 +1,10 @@
 import type { AnalysisResult, CatAnalysis, DogAnalysis } from '../analysis/types';
+import { CAT_CONTEXT_LESSON_MATCH } from '../analysis/types';
 
 interface Props {
   result: AnalysisResult | null;
   visible: boolean;
+  lessonId?: string;
 }
 
 function BreedBars({ breeds }: { breeds: DogAnalysis['breeds'] }) {
@@ -55,10 +57,13 @@ function CatBody({ result }: { result: CatAnalysis }) {
   );
 }
 
-export function AnalysisCard({ result, visible }: Props) {
+export function AnalysisCard({ result, visible, lessonId }: Props) {
   if (!result || !visible) return null;
 
   const isCat = result.animal === 'cat';
+  const lessonMatch = isCat && lessonId
+    ? CAT_CONTEXT_LESSON_MATCH[result.context]?.includes(lessonId)
+    : false;
 
   return (
     <div className={`analysis-card fade-up ${isCat ? 'cat-accent' : 'dog-accent'}`}>
@@ -97,6 +102,12 @@ export function AnalysisCard({ result, visible }: Props) {
         <span className="analysis-translation-label">What you actually said</span>
         <span className="analysis-translation-text">"{result.translation}"</span>
       </div>
+
+      {lessonMatch && (
+        <div className="analysis-lesson-match">
+          Nailed it — your meow matched real {result.animal === 'cat' ? result.contextLabel.toLowerCase() : ''} calls!
+        </div>
+      )}
     </div>
   );
 }

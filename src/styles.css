@@ -1412,3 +1412,14 @@ body::before {
   font-weight: 500;
   line-height: 1.4;
 }
+
+.analysis-lesson-match {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--success);
+  text-align: center;
+}
