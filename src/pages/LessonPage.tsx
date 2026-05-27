@@ -9,7 +9,7 @@ import { Confetti } from '../components/Confetti';
 import { KeyModal } from '../components/KeyModal';
 import { ScoreDots } from '../components/ScoreDots';
 import { useAudioAnalyser } from '../hooks/useAudioAnalyser';
-import { useAudioCapture } from '../hooks/useAudioCapture';
+import { useAudioCapture, TARGET_SAMPLE_RATE } from '../hooks/useAudioCapture';
 import { AnimalCoachAgent } from '../agent';
 import { analyzeAudio } from '../analysis/matcher';
 import { getStoredKey, storeKey } from '../apiKey';
@@ -18,8 +18,14 @@ import { LESSON_SOUNDS } from '../data/sounds';
 import { SoundPreview } from '../components/SoundPreview';
 import {
   checkVolumeGate,
-  computeMetricsFromFrames,
   computeScore,
+  failReasonsToRatingCategory,
+  formatDbRange,
+  getRelaxedTargets,
+  measureNoiseFloor,
+  METRIC_PASS_THRESHOLD,
+  resolveRecordingMetrics,
+  roundDb,
 } from '../lib/scoring';
 import { awardXP, loadProgress, markLessonComplete, saveProgress } from '../lib/progress';
 import type {
@@ -52,12 +58,14 @@ export function LessonPage() {
   const [lastMetrics, setLastMetrics] = useState<MeasuredMetrics | null>(null);
   const [xpEarned, setXpEarned] = useState<number | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [attemptNumber, setAttemptNumber] = useState(0);
 
   const analyser = useAudioAnalyser();
   const capture = useAudioCapture();
   const agentRef = useRef<AnimalCoachAgent | null>(null);
   const pendingKeyResolveRef = useRef<((key: string) => void) | null>(null);
   const recordTimerRef = useRef<number | null>(null);
+  const sampleTimerRef = useRef<number | null>(null);
   const countdownTimerRef = useRef<number | null>(null);
 
   // Frame accumulation for metrics
@@ -66,13 +74,14 @@ export function LessonPage() {
   const currentGateRef = useRef<GateResult | null>(null);
   const currentScoreRef = useRef(0);
   const attemptCountRef = useRef(0);
+  const noiseFloorRef = useRef(0);
 
-  // Collect frames during recording
+  // Collect frames during recording (20ms polling — React effect misses most RAF ticks)
   useEffect(() => {
-    if (isCapturingRef.current && analyser.active) {
-      capturedFramesRef.current.push({ ...analyser.frame });
-    }
-  }, [analyser.frame, analyser.active]);
+    return () => {
+      if (sampleTimerRef.current) window.clearInterval(sampleTimerRef.current);
+    };
+  }, []);
 
   const requestApiKey = useCallback((): Promise<string> => {
     const existing = getStoredKey();
@@ -117,15 +126,18 @@ export function LessonPage() {
       return;
     }
 
+    noiseFloorRef.current = await measureNoiseFloor(() => analyser.readFrame());
+
     const agent = new AnimalCoachAgent();
     agent.setCallbacks({
       onCoaching: (r) => {
         const gate = currentGateRef.current;
+        const passed = gate?.passed ?? false;
         setRating({
           score: currentScoreRef.current,
           comment: r.comment,
-          category: r.category,
-          passed: gate?.passed ?? false,
+          category: passed ? r.category : failReasonsToRatingCategory(gate?.failReasons ?? []),
+          passed,
         });
       },
       onCoachingComplete: () => {
@@ -164,8 +176,16 @@ export function LessonPage() {
     capturedFramesRef.current = [];
     isCapturingRef.current = true;
 
-    if (analyser.stream) {
-      capture.startCapture(analyser.stream);
+    sampleTimerRef.current = window.setInterval(() => {
+      if (isCapturingRef.current) {
+        capturedFramesRef.current.push(analyser.readFrame());
+      }
+    }, 20);
+    capturedFramesRef.current.push(analyser.readFrame());
+
+    const stream = analyser.getStream();
+    if (stream) {
+      capture.startCapture(stream);
     }
 
     let remaining = Math.ceil(RECORD_MS / 1000);
@@ -178,6 +198,8 @@ export function LessonPage() {
     recordTimerRef.current = window.setTimeout(async () => {
       if (countdownTimerRef.current) window.clearInterval(countdownTimerRef.current);
       countdownTimerRef.current = null;
+      if (sampleTimerRef.current) window.clearInterval(sampleTimerRef.current);
+      sampleTimerRef.current = null;
       setCountdown(null);
       isCapturingRef.current = false;
       setPhase('evaluating');
@@ -189,29 +211,31 @@ export function LessonPage() {
         });
       }
 
-      // Compute metrics locally
       const frames = capturedFramesRef.current;
-      const metrics = computeMetricsFromFrames(frames, RECORD_MS);
+      const metrics = resolveRecordingMetrics(
+        frames,
+        samples,
+        TARGET_SAMPLE_RATE,
+        RECORD_MS,
+        noiseFloorRef.current,
+      );
       const breakdown = computeScore(metrics, lesson);
       const gate = checkVolumeGate(metrics, breakdown, lesson);
 
       attemptCountRef.current += 1;
-      const isFirstAttempt = attemptCountRef.current === 1;
-      // First attempt always fails so the user gets feedback before advancing
-      const effectiveGate: GateResult = isFirstAttempt && gate.passed
-        ? { ...gate, passed: false, failReasons: [] }
-        : gate;
+      const attemptNumber = attemptCountRef.current;
 
-      currentGateRef.current = effectiveGate;
+      currentGateRef.current = gate;
       currentScoreRef.current = Math.round(breakdown.overall * 10);
+      setAttemptNumber(attemptNumber);
       setLastMetrics(metrics);
-      setLastGate(effectiveGate);
+      setLastGate(gate);
 
       const dotScore = Math.min(5, Math.round(breakdown.overall * 5));
       setScore(dotScore);
       setPhase('speaking');
 
-      if (effectiveGate.passed) {
+      if (gate.passed) {
         // Award XP and save progress
         const xp = lesson.xpReward;
         let prog = loadProgress();
@@ -223,9 +247,9 @@ export function LessonPage() {
       }
 
       // Send to agent — onCoaching will refine the comment, onCoachingComplete transitions to result
-      void agent.evaluateAttempt(metrics, effectiveGate, isFirstAttempt);
+      void agent.evaluateAttempt(metrics, gate);
     }, RECORD_MS);
-  }, [lesson, animal, analyser.stream, capture]);
+  }, [lesson, animal, analyser, capture]);
 
   const handlePracticeClick = useCallback(() => {
     if (phase === 'idle') {
@@ -249,6 +273,7 @@ export function LessonPage() {
     return () => {
       if (recordTimerRef.current) window.clearTimeout(recordTimerRef.current);
       if (countdownTimerRef.current) window.clearInterval(countdownTimerRef.current);
+      if (sampleTimerRef.current) window.clearInterval(sampleTimerRef.current);
       isCapturingRef.current = false;
       agentRef.current?.disconnect();
     };
@@ -290,6 +315,7 @@ export function LessonPage() {
   }
 
   const showPracticeUI = phase !== 'idle';
+  const targets = getRelaxedTargets(lesson.targets);
 
   return (
     <>
@@ -326,21 +352,21 @@ export function LessonPage() {
                 <div className="lesson-targets-label">Target Ranges</div>
                 <div className="lesson-targets-row">
                   <div className="target-range-pill">
-                    <span className="target-range-name">Volume</span>
+                    <span className="target-range-name">Volume (peak)</span>
                     <span className="target-range-val">
-                      {lesson.targets.volume_rms_db[0]} to {lesson.targets.volume_rms_db[1]} dB
+                      {formatDbRange(targets.volume_rms_db)}
                     </span>
                   </div>
                   <div className="target-range-pill">
                     <span className="target-range-name">Pitch</span>
                     <span className="target-range-val">
-                      {lesson.targets.pitch_hz[0]}–{lesson.targets.pitch_hz[1]} Hz
+                      {targets.pitch_hz[0]}–{targets.pitch_hz[1]} Hz
                     </span>
                   </div>
                   <div className="target-range-pill">
                     <span className="target-range-name">Duration</span>
                     <span className="target-range-val">
-                      {lesson.targets.duration_ms[0]}–{lesson.targets.duration_ms[1]} ms
+                      {targets.duration_ms[0]}–{targets.duration_ms[1]} ms
                     </span>
                   </div>
                 </div>
@@ -350,32 +376,42 @@ export function LessonPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <Waveform volume={analyser.frame.volume} animal={animal} visible={analyser.active} />
               <TargetShape animal={animal} />
-              <Meters volume={analyser.frame.volume} pitch={analyser.frame.pitch} animal={animal} />
-              <FeedbackCard phase={phase} rating={rating} />
-
-              {/* Metric breakdown shown after result */}
+              <Meters
+                volume={analyser.frame.volume}
+                pitch={analyser.frame.pitch}
+                animal={animal}
+                noiseFloorRms={noiseFloorRef.current}
+                volumeTarget={targets.volume_rms_db}
+                pitchTarget={targets.pitch_hz}
+              />
               {phase === 'result' && lastGate && lastMetrics && (
                 <div className="metric-breakdown fade-up">
                   <MetricRow
-                    label="Volume"
+                    label="Volume (peak)"
                     score={lastGate.breakdown.volume}
-                    measured={`${lastMetrics.volume_rms_db.toFixed(1)} dB`}
-                    target={`${lesson.targets.volume_rms_db[0]}–${lesson.targets.volume_rms_db[1]} dB`}
+                    measured={`${roundDb(lastMetrics.peak_db)} dB`}
+                    target={formatDbRange(targets.volume_rms_db)}
                   />
                   <MetricRow
                     label="Pitch"
                     score={lastGate.breakdown.pitch}
                     measured={lastMetrics.pitch_hz > 0 ? `${Math.round(lastMetrics.pitch_hz)} Hz` : '—'}
-                    target={`${lesson.targets.pitch_hz[0]}–${lesson.targets.pitch_hz[1]} Hz`}
+                    target={`${targets.pitch_hz[0]}–${targets.pitch_hz[1]} Hz`}
                   />
                   <MetricRow
                     label="Duration"
                     score={lastGate.breakdown.duration}
                     measured={`${Math.round(lastMetrics.duration_ms)} ms`}
-                    target={`${lesson.targets.duration_ms[0]}–${lesson.targets.duration_ms[1]} ms`}
+                    target={`${targets.duration_ms[0]}–${targets.duration_ms[1]} ms`}
                   />
                 </div>
               )}
+              <FeedbackCard
+                phase={phase}
+                rating={rating}
+                attemptNumber={phase === 'result' ? attemptNumber : undefined}
+                failReasons={lastGate?.failReasons}
+              />
 
               <AnalysisCard result={analysis} visible={phase === 'result'} lessonId={lesson.id} />
 
@@ -430,7 +466,7 @@ function MetricRow({
   target: string;
 }) {
   const pct = Math.round(score * 100);
-  const passed = score >= 0.65;
+  const passed = score >= METRIC_PASS_THRESHOLD;
   return (
     <div className="metric-row">
       <div className="metric-row-header">
@@ -444,7 +480,7 @@ function MetricRow({
           className={`metric-row-fill ${passed ? 'pass' : 'fail'}`}
           style={{ width: `${pct}%` }}
         />
-        <div className="metric-row-goal-marker" style={{ left: '65%' }} />
+        <div className="metric-row-goal-marker" style={{ left: `${METRIC_PASS_THRESHOLD * 100}%` }} />
       </div>
       <div className="metric-row-values">
         <span className="metric-measured">{measured}</span>

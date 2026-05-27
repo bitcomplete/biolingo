@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   getLessonsByPhase,
   PHASES_FOR_ANIMAL,
@@ -15,8 +15,20 @@ import type { Animal } from '../types';
 
 export function HomePage() {
   const [animal, setAnimal] = useState<Animal>('cat');
+  const [progress, setProgress] = useState(loadProgress);
   const navigate = useNavigate();
-  const progress = loadProgress();
+  const location = useLocation();
+
+  useEffect(() => {
+    const refresh = () => setProgress(loadProgress());
+    refresh();
+    window.addEventListener('pageshow', refresh);
+    window.addEventListener('biolingo-progress-updated', refresh);
+    return () => {
+      window.removeEventListener('pageshow', refresh);
+      window.removeEventListener('biolingo-progress-updated', refresh);
+    };
+  }, [location.key]);
   const { level, xpInLevel, xpToNext } = getXPLevel(progress.xp);
   const xpPct = Math.min(100, Math.round((xpInLevel / xpToNext) * 100));
 
