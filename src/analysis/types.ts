@@ -70,7 +70,13 @@ export const DOG_BREED_LABELS: Record<DogBreed, string> = {
 };
 
 export const CAT_CONTEXT_LABELS: Record<CatContext, string> = {
-  food: 'Waiting for food',
-  isolation: 'Isolation',
-  brushing: 'Brushing',
+  food: 'Hungry & Demanding',
+  isolation: 'Lonely & Calling Out',
+  brushing: 'Content & Affectionate',
+};
+
+export const CAT_CONTEXT_LESSON_MATCH: Record<CatContext, string[]> = {
+  food: ['cat_hunger_1', 'cat_attention_1'],
+  isolation: ['cat_fear_2', 'cat_attention_1', 'cat_territorial_2'],
+  brushing: ['cat_meow_1', 'cat_trill_1', 'cat_affection_2', 'cat_mrrp_2'],
 };

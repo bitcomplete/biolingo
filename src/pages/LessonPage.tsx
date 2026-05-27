@@ -377,7 +377,7 @@ export function LessonPage() {
                 </div>
               )}
 
-              <AnalysisCard result={analysis} visible={phase === 'result'} />
+              <AnalysisCard result={analysis} visible={phase === 'result'} lessonId={lesson.id} />
 
               {/* XP earned banner */}
               {phase === 'result' && xpEarned !== null && (
