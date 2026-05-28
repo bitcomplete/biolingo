@@ -233,6 +233,23 @@ body::before {
   opacity: .3;
 }
 
+.meter-target-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--success);
+  opacity: 0.22;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.meter-target-label {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: 'Space Mono', monospace;
+}
+
 .feedback-card {
   background: var(--surface);
   border-radius: var(--radius);
@@ -274,6 +291,10 @@ body::before {
   color: var(--text-dim);
   margin-top: 8px;
   font-family: 'Space Mono', monospace;
+}
+
+.feedback-hint-fail {
+  color: var(--warning);
 }
 
 .listening-ring {

@@ -1,8 +1,11 @@
-import type { Phase, Rating, RatingCategory } from '../types';
+import type { FailReason, Phase, Rating, RatingCategory } from '../types';
+import { failReasonsToHint } from '../lib/scoring';
 
 interface Props {
   phase: Phase;
   rating: Rating | null;
+  attemptNumber?: number;
+  failReasons?: FailReason[];
 }
 
 const CATEGORY_ICON: Record<RatingCategory, string> = {
@@ -25,7 +28,22 @@ interface View {
   success: boolean;
 }
 
-function viewForPhase(phase: Phase, rating: Rating | null): View {
+function resultHint(
+  passed: boolean,
+  failReasons: FailReason[] | undefined,
+  attemptNumber: number | undefined,
+): string {
+  if (passed) return 'Lesson complete!';
+  const fix = failReasonsToHint(failReasons ?? []);
+  return attemptNumber ? `Attempt ${attemptNumber} — ${fix}` : fix;
+}
+
+function viewForPhase(
+  phase: Phase,
+  rating: Rating | null,
+  attemptNumber?: number,
+  failReasons?: FailReason[],
+): View {
   switch (phase) {
     case 'connecting':
       return { icon: '🎓', text: 'Connecting your coach…', hint: 'setting up the session', ringClass: 'thinking', showScore: false, success: false };
@@ -38,7 +56,7 @@ function viewForPhase(phase: Phase, rating: Rating | null): View {
         return {
           icon: CATEGORY_ICON[rating.category] || '🎓',
           text: rating.comment,
-          hint: rating.passed ? 'passed!' : rating.category.replace(/_/g, ' '),
+          hint: rating.passed ? 'passed!' : failReasonsToHint(failReasons ?? []),
           ringClass: '',
           showScore: false,
           success: rating.passed,
@@ -48,11 +66,11 @@ function viewForPhase(phase: Phase, rating: Rating | null): View {
     case 'result':
       if (rating) {
         return {
-          icon: CATEGORY_ICON[rating.category] || '🎓',
+          icon: rating.passed ? '🎉' : CATEGORY_ICON[rating.category] || '🎓',
           text: rating.comment,
-          hint: rating.passed ? 'passed!' : rating.category.replace(/_/g, ' '),
+          hint: resultHint(rating.passed, failReasons, attemptNumber),
           ringClass: '',
-          showScore: true,
+          showScore: rating.passed,
           success: rating.passed,
         };
       }
@@ -63,8 +81,8 @@ function viewForPhase(phase: Phase, rating: Rating | null): View {
   }
 }
 
-export function FeedbackCard({ phase, rating }: Props) {
-  const view = viewForPhase(phase, rating);
+export function FeedbackCard({ phase, rating, attemptNumber, failReasons }: Props) {
+  const view = viewForPhase(phase, rating, attemptNumber, failReasons);
 
   return (
     <div className={`feedback-card fade-up ${view.success ? 'success-glow' : ''}`} style={{ animationDelay: '.2s' }}>
@@ -74,7 +92,7 @@ export function FeedbackCard({ phase, rating }: Props) {
       )}
       <div className="feedback-icon">{view.icon}</div>
       <div className="feedback-text">{view.text}</div>
-      <div className="feedback-hint">{view.hint}</div>
+      <div className={`feedback-hint ${view.success ? '' : 'feedback-hint-fail'}`}>{view.hint}</div>
     </div>
   );
 }

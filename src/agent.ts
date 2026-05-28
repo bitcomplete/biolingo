@@ -1,3 +1,4 @@
+import { getRelaxedTargets, METRIC_PASS_THRESHOLD } from './lib/scoring';
 import type { GateResult, Lesson, MeasuredMetrics, Rating, RatingCategory } from './types';
 
 const SHARED_RULES = `
@@ -15,7 +16,7 @@ ${SHARED_RULES}
 
 When you receive a performance report, call give_coaching exactly once.
 If the attempt passed, celebrate and say what was good.
-If it failed, give the single most important thing to fix.`;
+If it failed, lead with what still needs fixing. Do not praise metrics that failed. You may briefly acknowledge passing metrics only after naming the fix.`;
 
 const DOG_COACH_PROMPT = `You are DogCoachAI.
 
@@ -26,7 +27,7 @@ ${SHARED_RULES}
 
 When you receive a performance report, call give_coaching exactly once.
 If the attempt passed, celebrate and say what was good.
-If it failed, give the single most important thing to fix.`;
+If it failed, lead with what still needs fixing. Do not praise metrics that failed. You may briefly acknowledge passing metrics only after naming the fix.`;
 
 function qualitativeLevel(score: number): string {
   if (score >= 0.9) return 'perfect';
@@ -47,25 +48,25 @@ function buildPerformanceReport(
   lesson: Lesson,
   metrics: MeasuredMetrics,
   gate: GateResult,
-  firstAttempt: boolean,
 ): string {
-  const volumeDesc = gate.breakdown.volume >= 0.68
+  const targets = getRelaxedTargets(lesson.targets);
+  const volumeDesc = gate.breakdown.volume >= METRIC_PASS_THRESHOLD
     ? `${qualitativeLevel(gate.breakdown.volume)} — on target`
-    : metrics.volume_rms_db < lesson.targets.volume_rms_db[0]
+    : metrics.peak_db < targets.volume_rms_db[0]
       ? 'too quiet — needs to be louder'
       : 'too loud — needs to be softer';
 
   const pitchDesc = metrics.pitch_hz === 0
     ? 'no pitch detected — likely silence or noise'
-    : gate.breakdown.pitch >= 0.65
+    : gate.breakdown.pitch >= METRIC_PASS_THRESHOLD
       ? `${qualitativeLevel(gate.breakdown.pitch)} — in the right range`
-      : metrics.pitch_hz < lesson.targets.pitch_hz[0]
+      : metrics.pitch_hz < targets.pitch_hz[0]
         ? 'too low — needs to be higher pitched'
         : 'too high — needs to be lower pitched';
 
-  const durationDesc = gate.breakdown.duration >= 0.5
+  const durationDesc = gate.breakdown.duration >= METRIC_PASS_THRESHOLD
     ? `${qualitativeLevel(gate.breakdown.duration)} — right length`
-    : metrics.duration_ms < lesson.targets.duration_ms[0]
+    : metrics.duration_ms < targets.duration_ms[0]
       ? 'too short — needs to be held longer'
       : 'too long — needs to be shorter';
 
@@ -74,9 +75,9 @@ function buildPerformanceReport(
     `Loudness: ${volumeDesc}`,
     `Pitch: ${pitchDesc}`,
     `Duration: ${durationDesc}`,
-    `Result: ${gate.passed ? 'PASSED' : `FAILED (${gate.failReasons.join(', ')})`}`,
-    `Overall: ${Math.round(gate.breakdown.overall * 100)}%`,
-    ...(firstAttempt ? ['Note: This is their first attempt. Even if the metrics look good, give encouraging feedback about what to focus on for their next try.'] : []),
+    `Result: ${gate.passed ? 'PASSED — lesson complete' : `FAILED — still need: ${gate.failReasons.join(', ') || 'improvement'}`}`,
+    `Overall score (informational): ${Math.round(gate.breakdown.overall * 100)}%`,
+    ...(gate.passed ? [] : ['Important: The attempt did NOT pass. Do not imply the lesson is complete.']),
   ];
   return lines.join('\n');
 }
@@ -120,14 +121,14 @@ export class AnimalCoachAgent {
     this.currentLesson = lesson;
   }
 
-  async evaluateAttempt(metrics: MeasuredMetrics, gate: GateResult, firstAttempt = false): Promise<void> {
+  async evaluateAttempt(metrics: MeasuredMetrics, gate: GateResult): Promise<void> {
     if (!this.apiKey || !this.currentLesson) return;
 
     const body = {
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: buildSystemPrompt(this.currentLesson) },
-        { role: 'user', content: buildPerformanceReport(this.currentLesson, metrics, gate, firstAttempt) },
+        { role: 'user', content: buildPerformanceReport(this.currentLesson, metrics, gate) },
       ],
       tools: [GIVE_COACHING_TOOL],
       tool_choice: { type: 'function', function: { name: 'give_coaching' } },

@@ -2,6 +2,8 @@ import { useCallback, useRef } from 'react';
 
 const TARGET_SAMPLE_RATE = 16000;
 
+export { TARGET_SAMPLE_RATE };
+
 export interface AudioCapture {
   startCapture: (stream: MediaStream) => void;
   stopCapture: () => Promise<Float32Array>;
@@ -22,7 +24,7 @@ export function useAudioCapture(): AudioCapture {
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
-    recorder.start();
+    recorder.start(250);
     recorderRef.current = recorder;
   }, []);
 

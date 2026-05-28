@@ -1,4 +1,4 @@
-import { getLessonsForAnimal, PHASES_FOR_ANIMAL } from '../data/lessons';
+import { getLessonsByPhase, getLessonsForAnimal, PHASES_FOR_ANIMAL } from '../data/lessons';
 import type { UserProgress } from '../types';
 
 const STORAGE_KEY = 'biolingo_progress';
@@ -16,7 +16,8 @@ export function loadProgress(): UserProgress {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...EMPTY_PROGRESS };
     return { ...EMPTY_PROGRESS, ...(JSON.parse(raw) as Partial<UserProgress>) };
-  } catch {
+  } catch (e) {
+    console.warn('[progress] Failed to load from localStorage:', e);
     return { ...EMPTY_PROGRESS };
   }
 }
@@ -24,8 +25,9 @@ export function loadProgress(): UserProgress {
 export function saveProgress(progress: UserProgress): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
-  } catch {
-    // ignore storage errors
+    window.dispatchEvent(new CustomEvent('biolingo-progress-updated'));
+  } catch (e) {
+    console.warn('[progress] Failed to save to localStorage:', e);
   }
 }
 
@@ -54,13 +56,24 @@ export function markLessonComplete(
   return { ...progress, completedLessons: completed, bestScores };
 }
 
-export function isLessonUnlocked(lessonId: string, _progress: UserProgress): boolean {
+export function isPhaseComplete(
+  animal: 'cat' | 'dog',
+  phase: number,
+  progress: UserProgress,
+): boolean {
+  const phaseLessons = getLessonsByPhase(animal, phase);
+  return (
+    phaseLessons.length > 0 &&
+    phaseLessons.every((l) => progress.completedLessons.includes(l.id))
+  );
+}
+
+export function isLessonUnlocked(lessonId: string, progress: UserProgress): boolean {
   for (const animal of ['cat', 'dog'] as const) {
-    const lessons = getLessonsForAnimal(animal);
-    const lesson = lessons.find((l) => l.id === lessonId);
+    const lesson = getLessonsForAnimal(animal).find((l) => l.id === lessonId);
     if (!lesson) continue;
-    // Phase 1 always unlocked; phases 2+ always locked for now
-    return lesson.phase === 1;
+    if (lesson.phase === 1) return true;
+    return isPhaseComplete(animal, lesson.phase - 1, progress);
   }
   return false;
 }
