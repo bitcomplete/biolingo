@@ -128,6 +128,7 @@ export function LessonPage() {
         setRating({
           score: currentScoreRef.current,
           comment: r.comment,
+          heard: r.heard,
           category: r.category,
           passed: gate?.passed ?? false,
         });
@@ -390,7 +391,7 @@ export function LessonPage() {
               <Waveform volume={analyser.frame.volume} animal={animal} visible={analyser.active} />
               <TargetShape animal={animal} />
               <Meters volume={analyser.frame.volume} pitch={analyser.frame.pitch} animal={animal} />
-              <FeedbackCard phase={phase} rating={rating} />
+              <FeedbackCard phase={phase} rating={rating} animal={animal} />
 
               {/* Metric breakdown shown after result */}
               {phase === 'result' && lastGate && lastMetrics && (

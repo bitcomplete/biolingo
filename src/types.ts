@@ -26,6 +26,7 @@ export interface Rating {
   comment: string;
   category: RatingCategory;
   passed: boolean;
+  heard?: string;
 }
 
 // --- Lesson System ---

@@ -1,8 +1,9 @@
-import type { Phase, Rating, RatingCategory } from '../types';
+import type { Animal, Phase, Rating, RatingCategory } from '../types';
 
 interface Props {
   phase: Phase;
   rating: Rating | null;
+  animal: Animal;
 }
 
 const CATEGORY_ICON: Record<RatingCategory, string> = {
@@ -40,7 +41,7 @@ function viewForPhase(phase: Phase, rating: Rating | null): View {
         return {
           icon: CATEGORY_ICON[rating.category] || '🎓',
           text: rating.comment,
-          hint: rating.passed ? 'passed!' : rating.category.replace(/_/g, ' '),
+          hint: rating.passed ? 'passed!' : (rating.category?.replace(/_/g, ' ') ?? ''),
           ringClass: '',
           showScore: false,
           success: rating.passed,
@@ -52,7 +53,7 @@ function viewForPhase(phase: Phase, rating: Rating | null): View {
         return {
           icon: CATEGORY_ICON[rating.category] || '🎓',
           text: rating.comment,
-          hint: rating.passed ? 'passed!' : rating.category.replace(/_/g, ' '),
+          hint: rating.passed ? 'passed!' : (rating.category?.replace(/_/g, ' ') ?? ''),
           ringClass: '',
           showScore: true,
           success: rating.passed,
@@ -65,8 +66,9 @@ function viewForPhase(phase: Phase, rating: Rating | null): View {
   }
 }
 
-export function FeedbackCard({ phase, rating }: Props) {
+export function FeedbackCard({ phase, rating, animal }: Props) {
   const view = viewForPhase(phase, rating);
+  const showHeard = (phase === 'result' || phase === 'speaking') && rating?.heard;
 
   return (
     <div className={`feedback-card fade-up ${view.success ? 'success-glow' : ''}`} style={{ animationDelay: '.2s' }}>
@@ -77,6 +79,14 @@ export function FeedbackCard({ phase, rating }: Props) {
       <div className="feedback-icon">{view.icon}</div>
       <div className="feedback-text">{view.text}</div>
       <div className="feedback-hint">{view.hint}</div>
+      {showHeard && (
+        <div className="feedback-heard">
+          <span className="feedback-heard-label">
+            What your {animal} actually heard
+          </span>
+          <p className="feedback-heard-text">“{rating!.heard}”</p>
+        </div>
+      )}
     </div>
   );
 }
