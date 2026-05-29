@@ -1,4 +1,4 @@
-import { getLessonsForAnimal, PHASES_FOR_ANIMAL } from '../data/lessons';
+import { getLessonsForAnimal, UNITS_FOR_ANIMAL } from '../data/lessons';
 import type { UserProgress } from '../types';
 
 const STORAGE_KEY = 'biolingo_progress';
@@ -54,13 +54,13 @@ export function markLessonComplete(
   return { ...progress, completedLessons: completed, bestScores };
 }
 
-export function isLessonUnlocked(lessonId: string, _progress: UserProgress): boolean {
+export function isLessonUnlocked(lessonId: string, progress: UserProgress): boolean {
   for (const animal of ['cat', 'dog'] as const) {
     const lessons = getLessonsForAnimal(animal);
-    const lesson = lessons.find((l) => l.id === lessonId);
-    if (!lesson) continue;
-    // Phase 1 always unlocked; phases 2+ always locked for now
-    return lesson.phase === 1;
+    const idx = lessons.findIndex((l) => l.id === lessonId);
+    if (idx === -1) continue;
+    if (idx === 0) return true;
+    return progress.completedLessons.includes(lessons[idx - 1].id);
   }
   return false;
 }
@@ -90,16 +90,16 @@ export function getXPLevel(xp: number): { level: number; xpInLevel: number; xpTo
 export function getCompletionStats(
   animal: 'cat' | 'dog',
   progress: UserProgress,
-): { completed: number; total: number; phases: Record<number, { completed: number; total: number }> } {
+): { completed: number; total: number; units: Record<number, { completed: number; total: number }> } {
   const lessons = getLessonsForAnimal(animal);
-  const phases: Record<number, { completed: number; total: number }> = {};
-  for (const phase of PHASES_FOR_ANIMAL[animal]) {
-    const phaseLessons = lessons.filter((l) => l.phase === phase);
-    const completedCount = phaseLessons.filter((l) =>
+  const units: Record<number, { completed: number; total: number }> = {};
+  for (const unit of UNITS_FOR_ANIMAL[animal]) {
+    const unitLessons = lessons.filter((l) => l.unit === unit);
+    const completedCount = unitLessons.filter((l) =>
       progress.completedLessons.includes(l.id),
     ).length;
-    phases[phase] = { completed: completedCount, total: phaseLessons.length };
+    units[unit] = { completed: completedCount, total: unitLessons.length };
   }
   const completed = lessons.filter((l) => progress.completedLessons.includes(l.id)).length;
-  return { completed, total: lessons.length, phases };
+  return { completed, total: lessons.length, units };
 }

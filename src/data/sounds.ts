@@ -10,14 +10,14 @@ import dogWhine from '../sounds/animal_dog_Anxiety.mp3';
 import dogHowl from '../sounds/dog_howl_sound.mp3';
 
 export const LESSON_SOUNDS: Record<string, string> = {
-  cat_meow_1: catMeow,
-  cat_hunger_1: catHunger,
-  cat_attention_1: catAttention,
-  cat_trill_1: catTrill,
-  cat_chirp_1: catChirp,
-  dog_bark_1: dogBark,
-  dog_yip_1: dogYip,
-  dog_growl_1: dogGrowl,
-  dog_whine_1: dogWhine,
-  dog_howl_1: dogHowl,
+  cat_greeting_1: catMeow,
+  cat_demand_1: catHunger,
+  cat_complaint_1: catAttention,
+  cat_ack_1: catTrill,
+  cat_hunt_1: catChirp,
+  dog_greeting_1: dogHowl,
+  dog_ack_1: dogBark,
+  dog_excitement_1: dogYip,
+  dog_warning_1: dogGrowl,
+  dog_call_1: dogWhine,
 };

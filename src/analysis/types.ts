@@ -76,7 +76,7 @@ export const CAT_CONTEXT_LABELS: Record<CatContext, string> = {
 };
 
 export const CAT_CONTEXT_LESSON_MATCH: Record<CatContext, string[]> = {
-  food: ['cat_hunger_1', 'cat_attention_1'],
-  isolation: ['cat_fear_2', 'cat_attention_1', 'cat_territorial_2'],
-  brushing: ['cat_meow_1', 'cat_trill_1', 'cat_affection_2', 'cat_mrrp_2'],
+  food: ['cat_demand_1', 'cat_complaint_1'],
+  isolation: ['cat_distress_2', 'cat_complaint_1', 'cat_territory_2'],
+  brushing: ['cat_greeting_1', 'cat_ack_1', 'cat_affection_2', 'cat_question_2'],
 };

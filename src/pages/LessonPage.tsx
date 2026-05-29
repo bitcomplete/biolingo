@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { LessonIcon } from '../components/LessonIcon';
 import { Waveform } from '../components/Waveform';
 import { TargetShape } from '../components/TargetShape';
 import { Meters } from '../components/Meters';
@@ -22,6 +23,9 @@ import {
   computeScore,
 } from '../lib/scoring';
 import { awardXP, loadProgress, markLessonComplete, saveProgress } from '../lib/progress';
+import { certificateLessons, isUnitComplete, proficiencyForUnit } from '../lib/certificates';
+import { prefetchPortrait } from '../lib/portraitPrefetch';
+import { updatePersonalityProfile } from '../lib/personalityProfile';
 import type {
   Animal,
   AudioFrame,
@@ -185,7 +189,11 @@ export function LessonPage() {
       const samples = await capture.stopCapture();
       if (samples.length > 0) {
         analyzeAudio(samples, animal).then((result) => {
-          if (result) setAnalysis(result);
+          if (result) {
+            setAnalysis(result);
+            const prog = updatePersonalityProfile(loadProgress(), animal, result);
+            saveProgress(prog);
+          }
         });
       }
 
@@ -197,53 +205,92 @@ export function LessonPage() {
 
       attemptCountRef.current += 1;
       const isFirstAttempt = attemptCountRef.current === 1;
-      // First attempt always fails so the user gets feedback before advancing
-      const effectiveGate: GateResult = isFirstAttempt && gate.passed
-        ? { ...gate, passed: false, failReasons: [] }
-        : gate;
 
-      currentGateRef.current = effectiveGate;
+      currentGateRef.current = gate;
       currentScoreRef.current = Math.round(breakdown.overall * 10);
       setLastMetrics(metrics);
-      setLastGate(effectiveGate);
+      setLastGate(gate);
 
       const dotScore = Math.min(5, Math.round(breakdown.overall * 5));
       setScore(dotScore);
       setPhase('speaking');
 
-      if (effectiveGate.passed) {
-        // Award XP and save progress
-        const xp = lesson.xpReward;
-        let prog = loadProgress();
-        prog = markLessonComplete(prog, lesson.id, breakdown.overall);
-        prog = awardXP(prog, xp);
-        saveProgress(prog);
-        setXpEarned(xp);
+      if (gate.passed) {
+        setXpEarned(lesson.xpReward);
         if (breakdown.overall >= 0.85) setConfettiBurst((b) => b + 1);
       }
 
       // Send to agent — onCoaching will refine the comment, onCoachingComplete transitions to result
-      void agent.evaluateAttempt(metrics, effectiveGate, isFirstAttempt);
+      void agent.evaluateAttempt(metrics, gate, isFirstAttempt);
     }, RECORD_MS);
   }, [lesson, animal, analyser.stream, capture]);
 
-  const handlePracticeClick = useCallback(() => {
-    if (phase === 'idle') {
-      void bootSession();
-    } else if (phase === 'ready' || phase === 'result') {
-      startRecording();
-    }
-  }, [phase, bootSession, startRecording]);
-
   const handleNextLesson = useCallback(() => {
     if (!lesson) return;
+
+    let prog = loadProgress();
+    const score = lastGate?.breakdown.overall ?? 0;
+    prog = markLessonComplete(prog, lesson.id, score);
+    prog = awardXP(prog, lesson.xpReward);
+    saveProgress(prog);
+
+    // When the user is one lesson away from unlocking the certificate, start
+    // generating the certificate portrait in the background so it is ready
+    // (or close to it) by the time they claim the certificate.
+    if (lesson.unit === 1 || lesson.unit === 2 || lesson.unit === 3) {
+      const remaining = certificateLessons(animal, lesson.unit).filter(
+        (l) => !prog.completedLessons.includes(l.id),
+      ).length;
+      if (remaining === 1) {
+        prefetchPortrait({
+          animal,
+          unit: lesson.unit,
+          profile: prog.personalityProfile?.[animal],
+          proficiencyLabel: proficiencyForUnit(lesson.unit).label,
+        });
+      }
+    }
+
+    // If finishing this lesson completes the unit, send the user home and
+    // auto-open the certificate claim flow so the reward is never missed.
+    const unitJustCompleted =
+      (lesson.unit === 1 || lesson.unit === 2 || lesson.unit === 3) &&
+      isUnitComplete(animal, lesson.unit, prog);
+
+    if (unitJustCompleted) {
+      navigate('/', {
+        state: { openCert: { animal, unit: lesson.unit as 1 | 2 | 3 } },
+      });
+      return;
+    }
+
     const next = getNextLesson(lesson.id);
     if (next) {
       navigate(`/lesson/${next.animal}/${next.id}`);
     } else {
       navigate('/');
     }
-  }, [lesson, navigate]);
+  }, [lesson, navigate, lastGate, animal]);
+
+  const retryAttempt = useCallback(() => {
+    setRating(null);
+    setLastGate(null);
+    setLastMetrics(null);
+    setXpEarned(null);
+    setAnalysis(null);
+    setScore(0);
+    startRecording();
+  }, [startRecording]);
+
+  const handlePracticeClick = useCallback(() => {
+    if (phase === 'idle') {
+      void bootSession();
+    } else if (phase === 'ready') {
+      startRecording();
+    } else if (phase === 'result') {
+      handleNextLesson();
+    }
+  }, [phase, bootSession, startRecording, handleNextLesson]);
 
   useEffect(() => {
     return () => {
@@ -256,7 +303,7 @@ export function LessonPage() {
 
   const practiceButton = useMemo(() => {
     const theme = animal === 'cat' ? 'cat-theme' : 'dog-theme';
-    const soundWord = animal === 'cat' ? lesson?.emoji ?? '🐱' : lesson?.emoji ?? '🐶';
+    const soundWord = animal === 'cat' ? '🐱' : '🐶';
     switch (phase) {
       case 'idle':
         return { label: `Start Lesson`, disabled: false, listening: false, theme };
@@ -271,7 +318,7 @@ export function LessonPage() {
       case 'speaking':
         return { label: 'Getting feedback…', disabled: true, listening: true, theme };
       case 'result':
-        return { label: 'Try Again', disabled: false, listening: false, theme };
+        return { label: 'Continue', disabled: false, listening: false, theme };
       default:
         return { label: '', disabled: true, listening: false, theme };
     }
@@ -297,11 +344,13 @@ export function LessonPage() {
         {/* Lesson header */}
         <header className="lesson-header fade-up">
           <button className="lesson-back-btn" onClick={() => navigate('/')}>←</button>
-          <div className="lesson-header-info">
-            <span className="lesson-header-phase">
-              {lesson.animal === 'cat' ? '🐱' : '🐶'} Phase {lesson.phase}
-            </span>
-            <span className="lesson-header-title">{lesson.title}</span>
+          <div className="lesson-header-progress">
+            <div className="lesson-progress-track">
+              <div
+                className={`lesson-progress-fill ${animal === 'cat' ? 'cat' : 'dog'}`}
+                style={{ width: phase === 'idle' ? '0%' : phase === 'result' && lastGate?.passed ? '100%' : '50%' }}
+              />
+            </div>
           </div>
           <div className="lesson-header-xp">+{lesson.xpReward} XP</div>
         </header>
@@ -311,39 +360,29 @@ export function LessonPage() {
         {/* Main content */}
         <div className="main">
           {!showPracticeUI ? (
-            <div className="lesson-intro fade-up" style={{ animationDelay: '0.1s' }}>
-              <div className="lesson-intro-emoji">{lesson.emoji}</div>
-              <h2 className="lesson-intro-title">{lesson.title}</h2>
-              <p className="lesson-intro-description">{lesson.description}</p>
-              <div className="lesson-intro-instruction">
-                <span className="lesson-intro-instruction-label">How to do it</span>
-                <p className="lesson-intro-instruction-text">{lesson.instruction}</p>
+            <div className="lesson-intro-duo fade-up" style={{ animationDelay: '0.1s' }}>
+              <div className="duo-prompt">
+                <span className="duo-prompt-label">Say this to your {animal}</span>
+              </div>
+
+              <div className="duo-goal-phrase">
+                <span className="duo-goal-icon"><LessonIcon icon={lesson.icon} size={32} /></span>
+                <h2 className="duo-goal-text">"{lesson.meaning}"</h2>
+              </div>
+
+              <div className="duo-phonemes">
+                {lesson.phonemes.map((p, i) => (
+                  <span key={i} className={`duo-phoneme-chip ${animal === 'cat' ? 'cat-chip' : 'dog-chip'}`}>
+                    {p}
+                  </span>
+                ))}
+              </div>
+
+              <div className="duo-how-card">
+                <p className="duo-how-text">{lesson.instruction}</p>
                 {LESSON_SOUNDS[lesson.id] && (
                   <SoundPreview src={LESSON_SOUNDS[lesson.id]} animal={animal} />
                 )}
-              </div>
-              <div className="lesson-targets">
-                <div className="lesson-targets-label">Target Ranges</div>
-                <div className="lesson-targets-row">
-                  <div className="target-range-pill">
-                    <span className="target-range-name">Volume</span>
-                    <span className="target-range-val">
-                      {lesson.targets.volume_rms_db[0]} to {lesson.targets.volume_rms_db[1]} dB
-                    </span>
-                  </div>
-                  <div className="target-range-pill">
-                    <span className="target-range-name">Pitch</span>
-                    <span className="target-range-val">
-                      {lesson.targets.pitch_hz[0]}–{lesson.targets.pitch_hz[1]} Hz
-                    </span>
-                  </div>
-                  <div className="target-range-pill">
-                    <span className="target-range-name">Duration</span>
-                    <span className="target-range-val">
-                      {lesson.targets.duration_ms[0]}–{lesson.targets.duration_ms[1]} ms
-                    </span>
-                  </div>
-                </div>
               </div>
             </div>
           ) : (
@@ -377,7 +416,7 @@ export function LessonPage() {
                 </div>
               )}
 
-              <AnalysisCard result={analysis} visible={phase === 'result'} lessonId={lesson.id} />
+              <AnalysisCard result={analysis} visible={phase === 'result'} />
 
               {/* XP earned banner */}
               {phase === 'result' && xpEarned !== null && (
@@ -386,15 +425,6 @@ export function LessonPage() {
                 </div>
               )}
 
-              {/* Next lesson button */}
-              {phase === 'result' && lastGate?.passed && (
-                <button
-                  className={`next-lesson-btn ${animal === 'cat' ? 'cat-theme' : 'dog-theme'}`}
-                  onClick={handleNextLesson}
-                >
-                  Next Lesson →
-                </button>
-              )}
             </div>
           )}
         </div>
@@ -409,6 +439,14 @@ export function LessonPage() {
           >
             {practiceButton.label}
           </button>
+          {phase === 'result' && (
+            <button
+              className={`practice-btn-secondary ${animal === 'cat' ? 'cat' : 'dog'}`}
+              onClick={retryAttempt}
+            >
+              Try Again
+            </button>
+          )}
         </div>
       </div>
 

@@ -142,11 +142,11 @@ export function checkVolumeGate(
 
 export function failReasonsToRatingCategory(
   reasons: FailReason[],
-): 'too_quiet' | 'too_loud' | 'silence' | 'chaos' {
+): 'too_quiet' | 'too_loud' | 'silence' | 'total_failure' {
   if (reasons.includes('silence')) return 'silence';
   if (reasons.includes('too_quiet')) return 'too_quiet';
   if (reasons.includes('too_loud')) return 'too_loud';
-  return 'chaos';
+  return 'total_failure';
 }
 
 export function failReasonsToMessage(reasons: FailReason[]): string {

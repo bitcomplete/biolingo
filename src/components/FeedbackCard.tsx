@@ -11,9 +11,11 @@ const CATEGORY_ICON: Record<RatingCategory, string> = {
   passable: '👍',
   too_quiet: '🔈',
   too_loud: '📢',
-  wrong_pitch: '🎵',
+  wrong_phoneme: '🔀',
+  wrong_duration: '⏱️',
+  threat_display: '☠️',
   silence: '🦗',
-  chaos: '🌪️',
+  total_failure: '💀',
 };
 
 interface View {

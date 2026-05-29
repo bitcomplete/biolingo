@@ -15,9 +15,11 @@ export type RatingCategory =
   | 'passable'
   | 'too_quiet'
   | 'too_loud'
-  | 'wrong_pitch'
+  | 'wrong_phoneme'
+  | 'wrong_duration'
+  | 'threat_display'
   | 'silence'
-  | 'chaos';
+  | 'total_failure';
 
 export interface Rating {
   score: number;
@@ -40,15 +42,19 @@ export interface LessonTargets {
 export interface Lesson {
   id: string;
   animal: Animal;
-  phase: 1 | 2 | 3 | 4 | 5;
-  phaseTitle: string;
+  unit: 1 | 2 | 3 | 4 | 5;
+  unitTitle: string;
   title: string;
   description: string;
-  emoji: string;
+  icon: string;
   instruction: string;
   targets: LessonTargets;
   xpReward: number;
   aiContext: string;
+  phonemes: string[];
+  meaning: string;
+  commonFailure?: string;
+  animalHears?: string;
 }
 
 export interface MeasuredMetrics {
@@ -84,12 +90,43 @@ export interface GateResult {
   breakdown: ScoreBreakdown;
 }
 
+export interface AggregatedProfile {
+  attempts: number;
+  topBreed: string;
+  breedVotes: Record<string, number>;
+  topMood: string;
+  moodVotes: Record<string, number>;
+  sexVotes: { male: number; female: number };
+  avgConfidence: number;
+}
+
+export type ProficiencyLevel = 'A1' | 'A2' | 'B1';
+
+export interface CertificateRecord {
+  key: string;
+  animal: Animal;
+  unit: 1 | 2 | 3;
+  proficiency: ProficiencyLevel;
+  proficiencyLabel: string;
+  breedDialect: string;
+  breedKey: string;
+  topMood: string;
+  issuedAt: string;
+  imageDataUrl?: string;
+  flavorLine?: string;
+  averageScore: number;
+}
+
 export interface UserProgress {
   xp: number;
   completedLessons: string[];
   bestScores: Record<string, number>;
   streakDays: number;
   lastPracticeDate: string;
+  ownerName?: string;
+  petNames?: { cat?: string; dog?: string };
+  personalityProfile?: { cat?: AggregatedProfile; dog?: AggregatedProfile };
+  certificates?: Record<string, CertificateRecord>;
 }
 
 export interface AudioFrame {
