@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { LessonIcon } from '../components/LessonIcon';
 import { Waveform } from '../components/Waveform';
 import { TargetShape } from '../components/TargetShape';
 import { Meters } from '../components/Meters';
@@ -9,7 +10,7 @@ import { Confetti } from '../components/Confetti';
 import { KeyModal } from '../components/KeyModal';
 import { ScoreDots } from '../components/ScoreDots';
 import { useAudioAnalyser } from '../hooks/useAudioAnalyser';
-import { useAudioCapture, TARGET_SAMPLE_RATE } from '../hooks/useAudioCapture';
+import { useAudioCapture } from '../hooks/useAudioCapture';
 import { AnimalCoachAgent } from '../agent';
 import { analyzeAudio } from '../analysis/matcher';
 import { getStoredKey, storeKey } from '../apiKey';
@@ -18,16 +19,13 @@ import { LESSON_SOUNDS } from '../data/sounds';
 import { SoundPreview } from '../components/SoundPreview';
 import {
   checkVolumeGate,
+  computeMetricsFromFrames,
   computeScore,
-  failReasonsToRatingCategory,
-  formatDbRange,
-  getRelaxedTargets,
-  measureNoiseFloor,
-  METRIC_PASS_THRESHOLD,
-  resolveRecordingMetrics,
-  roundDb,
 } from '../lib/scoring';
 import { awardXP, loadProgress, markLessonComplete, saveProgress } from '../lib/progress';
+import { certificateLessons, isUnitComplete, proficiencyForUnit } from '../lib/certificates';
+import { prefetchPortrait } from '../lib/portraitPrefetch';
+import { updatePersonalityProfile } from '../lib/personalityProfile';
 import type {
   Animal,
   AudioFrame,
@@ -58,14 +56,12 @@ export function LessonPage() {
   const [lastMetrics, setLastMetrics] = useState<MeasuredMetrics | null>(null);
   const [xpEarned, setXpEarned] = useState<number | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
-  const [attemptNumber, setAttemptNumber] = useState(0);
 
   const analyser = useAudioAnalyser();
   const capture = useAudioCapture();
   const agentRef = useRef<AnimalCoachAgent | null>(null);
   const pendingKeyResolveRef = useRef<((key: string) => void) | null>(null);
   const recordTimerRef = useRef<number | null>(null);
-  const sampleTimerRef = useRef<number | null>(null);
   const countdownTimerRef = useRef<number | null>(null);
 
   // Frame accumulation for metrics
@@ -74,14 +70,13 @@ export function LessonPage() {
   const currentGateRef = useRef<GateResult | null>(null);
   const currentScoreRef = useRef(0);
   const attemptCountRef = useRef(0);
-  const noiseFloorRef = useRef(0);
 
-  // Collect frames during recording (20ms polling — React effect misses most RAF ticks)
+  // Collect frames during recording
   useEffect(() => {
-    return () => {
-      if (sampleTimerRef.current) window.clearInterval(sampleTimerRef.current);
-    };
-  }, []);
+    if (isCapturingRef.current && analyser.active) {
+      capturedFramesRef.current.push({ ...analyser.frame });
+    }
+  }, [analyser.frame, analyser.active]);
 
   const requestApiKey = useCallback((): Promise<string> => {
     const existing = getStoredKey();
@@ -126,18 +121,16 @@ export function LessonPage() {
       return;
     }
 
-    noiseFloorRef.current = await measureNoiseFloor(() => analyser.readFrame());
-
     const agent = new AnimalCoachAgent();
     agent.setCallbacks({
       onCoaching: (r) => {
         const gate = currentGateRef.current;
-        const passed = gate?.passed ?? false;
         setRating({
           score: currentScoreRef.current,
           comment: r.comment,
-          category: passed ? r.category : failReasonsToRatingCategory(gate?.failReasons ?? []),
-          passed,
+          heard: r.heard,
+          category: r.category,
+          passed: gate?.passed ?? false,
         });
       },
       onCoachingComplete: () => {
@@ -176,16 +169,8 @@ export function LessonPage() {
     capturedFramesRef.current = [];
     isCapturingRef.current = true;
 
-    sampleTimerRef.current = window.setInterval(() => {
-      if (isCapturingRef.current) {
-        capturedFramesRef.current.push(analyser.readFrame());
-      }
-    }, 20);
-    capturedFramesRef.current.push(analyser.readFrame());
-
-    const stream = analyser.getStream();
-    if (stream) {
-      capture.startCapture(stream);
+    if (analyser.stream) {
+      capture.startCapture(analyser.stream);
     }
 
     let remaining = Math.ceil(RECORD_MS / 1000);
@@ -198,8 +183,6 @@ export function LessonPage() {
     recordTimerRef.current = window.setTimeout(async () => {
       if (countdownTimerRef.current) window.clearInterval(countdownTimerRef.current);
       countdownTimerRef.current = null;
-      if (sampleTimerRef.current) window.clearInterval(sampleTimerRef.current);
-      sampleTimerRef.current = null;
       setCountdown(null);
       isCapturingRef.current = false;
       setPhase('evaluating');
@@ -207,27 +190,25 @@ export function LessonPage() {
       const samples = await capture.stopCapture();
       if (samples.length > 0) {
         analyzeAudio(samples, animal).then((result) => {
-          if (result) setAnalysis(result);
+          if (result) {
+            setAnalysis(result);
+            const prog = updatePersonalityProfile(loadProgress(), animal, result);
+            saveProgress(prog);
+          }
         });
       }
 
+      // Compute metrics locally
       const frames = capturedFramesRef.current;
-      const metrics = resolveRecordingMetrics(
-        frames,
-        samples,
-        TARGET_SAMPLE_RATE,
-        RECORD_MS,
-        noiseFloorRef.current,
-      );
+      const metrics = computeMetricsFromFrames(frames, RECORD_MS);
       const breakdown = computeScore(metrics, lesson);
       const gate = checkVolumeGate(metrics, breakdown, lesson);
 
       attemptCountRef.current += 1;
-      const attemptNumber = attemptCountRef.current;
+      const isFirstAttempt = attemptCountRef.current === 1;
 
       currentGateRef.current = gate;
       currentScoreRef.current = Math.round(breakdown.overall * 10);
-      setAttemptNumber(attemptNumber);
       setLastMetrics(metrics);
       setLastGate(gate);
 
@@ -236,44 +217,86 @@ export function LessonPage() {
       setPhase('speaking');
 
       if (gate.passed) {
-        // Award XP and save progress
-        const xp = lesson.xpReward;
-        let prog = loadProgress();
-        prog = markLessonComplete(prog, lesson.id, breakdown.overall);
-        prog = awardXP(prog, xp);
-        saveProgress(prog);
-        setXpEarned(xp);
+        setXpEarned(lesson.xpReward);
         if (breakdown.overall >= 0.85) setConfettiBurst((b) => b + 1);
       }
 
       // Send to agent — onCoaching will refine the comment, onCoachingComplete transitions to result
-      void agent.evaluateAttempt(metrics, gate);
+      void agent.evaluateAttempt(metrics, gate, isFirstAttempt);
     }, RECORD_MS);
-  }, [lesson, animal, analyser, capture]);
-
-  const handlePracticeClick = useCallback(() => {
-    if (phase === 'idle') {
-      void bootSession();
-    } else if (phase === 'ready' || phase === 'result') {
-      startRecording();
-    }
-  }, [phase, bootSession, startRecording]);
+  }, [lesson, animal, analyser.stream, capture]);
 
   const handleNextLesson = useCallback(() => {
     if (!lesson) return;
+
+    let prog = loadProgress();
+    const score = lastGate?.breakdown.overall ?? 0;
+    prog = markLessonComplete(prog, lesson.id, score);
+    prog = awardXP(prog, lesson.xpReward);
+    saveProgress(prog);
+
+    // When the user is one lesson away from unlocking the certificate, start
+    // generating the certificate portrait in the background so it is ready
+    // (or close to it) by the time they claim the certificate.
+    if (lesson.unit === 1 || lesson.unit === 2 || lesson.unit === 3) {
+      const remaining = certificateLessons(animal, lesson.unit).filter(
+        (l) => !prog.completedLessons.includes(l.id),
+      ).length;
+      if (remaining === 1) {
+        prefetchPortrait({
+          animal,
+          unit: lesson.unit,
+          profile: prog.personalityProfile?.[animal],
+          proficiencyLabel: proficiencyForUnit(lesson.unit).label,
+        });
+      }
+    }
+
+    // If finishing this lesson completes the unit, send the user home and
+    // auto-open the certificate claim flow so the reward is never missed.
+    const unitJustCompleted =
+      (lesson.unit === 1 || lesson.unit === 2 || lesson.unit === 3) &&
+      isUnitComplete(animal, lesson.unit, prog);
+
+    if (unitJustCompleted) {
+      navigate('/', {
+        state: { openCert: { animal, unit: lesson.unit as 1 | 2 | 3 } },
+      });
+      return;
+    }
+
     const next = getNextLesson(lesson.id);
     if (next) {
       navigate(`/lesson/${next.animal}/${next.id}`);
     } else {
       navigate('/');
     }
-  }, [lesson, navigate]);
+  }, [lesson, navigate, lastGate, animal]);
+
+  const retryAttempt = useCallback(() => {
+    setRating(null);
+    setLastGate(null);
+    setLastMetrics(null);
+    setXpEarned(null);
+    setAnalysis(null);
+    setScore(0);
+    startRecording();
+  }, [startRecording]);
+
+  const handlePracticeClick = useCallback(() => {
+    if (phase === 'idle') {
+      void bootSession();
+    } else if (phase === 'ready') {
+      startRecording();
+    } else if (phase === 'result') {
+      handleNextLesson();
+    }
+  }, [phase, bootSession, startRecording, handleNextLesson]);
 
   useEffect(() => {
     return () => {
       if (recordTimerRef.current) window.clearTimeout(recordTimerRef.current);
       if (countdownTimerRef.current) window.clearInterval(countdownTimerRef.current);
-      if (sampleTimerRef.current) window.clearInterval(sampleTimerRef.current);
       isCapturingRef.current = false;
       agentRef.current?.disconnect();
     };
@@ -281,7 +304,7 @@ export function LessonPage() {
 
   const practiceButton = useMemo(() => {
     const theme = animal === 'cat' ? 'cat-theme' : 'dog-theme';
-    const soundWord = animal === 'cat' ? lesson?.emoji ?? '🐱' : lesson?.emoji ?? '🐶';
+    const soundWord = animal === 'cat' ? '🐱' : '🐶';
     switch (phase) {
       case 'idle':
         return { label: `Start Lesson`, disabled: false, listening: false, theme };
@@ -296,7 +319,7 @@ export function LessonPage() {
       case 'speaking':
         return { label: 'Getting feedback…', disabled: true, listening: true, theme };
       case 'result':
-        return { label: 'Try Again', disabled: false, listening: false, theme };
+        return { label: 'Continue', disabled: false, listening: false, theme };
       default:
         return { label: '', disabled: true, listening: false, theme };
     }
@@ -315,7 +338,6 @@ export function LessonPage() {
   }
 
   const showPracticeUI = phase !== 'idle';
-  const targets = getRelaxedTargets(lesson.targets);
 
   return (
     <>
@@ -323,11 +345,13 @@ export function LessonPage() {
         {/* Lesson header */}
         <header className="lesson-header fade-up">
           <button className="lesson-back-btn" onClick={() => navigate('/')}>←</button>
-          <div className="lesson-header-info">
-            <span className="lesson-header-phase">
-              {lesson.animal === 'cat' ? '🐱' : '🐶'} Phase {lesson.phase}
-            </span>
-            <span className="lesson-header-title">{lesson.title}</span>
+          <div className="lesson-header-progress">
+            <div className="lesson-progress-track">
+              <div
+                className={`lesson-progress-fill ${animal === 'cat' ? 'cat' : 'dog'}`}
+                style={{ width: phase === 'idle' ? '0%' : phase === 'result' && lastGate?.passed ? '100%' : '50%' }}
+              />
+            </div>
           </div>
           <div className="lesson-header-xp">+{lesson.xpReward} XP</div>
         </header>
@@ -337,83 +361,63 @@ export function LessonPage() {
         {/* Main content */}
         <div className="main">
           {!showPracticeUI ? (
-            <div className="lesson-intro fade-up" style={{ animationDelay: '0.1s' }}>
-              <div className="lesson-intro-emoji">{lesson.emoji}</div>
-              <h2 className="lesson-intro-title">{lesson.title}</h2>
-              <p className="lesson-intro-description">{lesson.description}</p>
-              <div className="lesson-intro-instruction">
-                <span className="lesson-intro-instruction-label">How to do it</span>
-                <p className="lesson-intro-instruction-text">{lesson.instruction}</p>
+            <div className="lesson-intro-duo fade-up" style={{ animationDelay: '0.1s' }}>
+              <div className="duo-prompt">
+                <span className="duo-prompt-label">Say this to your {animal}</span>
+              </div>
+
+              <div className="duo-goal-phrase">
+                <span className="duo-goal-icon"><LessonIcon icon={lesson.icon} size={32} /></span>
+                <h2 className="duo-goal-text">"{lesson.meaning}"</h2>
+              </div>
+
+              <div className="duo-phonemes">
+                {lesson.phonemes.map((p, i) => (
+                  <span key={i} className={`duo-phoneme-chip ${animal === 'cat' ? 'cat-chip' : 'dog-chip'}`}>
+                    {p}
+                  </span>
+                ))}
+              </div>
+
+              <div className="duo-how-card">
+                <p className="duo-how-text">{lesson.instruction}</p>
                 {LESSON_SOUNDS[lesson.id] && (
                   <SoundPreview src={LESSON_SOUNDS[lesson.id]} animal={animal} />
                 )}
-              </div>
-              <div className="lesson-targets">
-                <div className="lesson-targets-label">Target Ranges</div>
-                <div className="lesson-targets-row">
-                  <div className="target-range-pill">
-                    <span className="target-range-name">Volume (peak)</span>
-                    <span className="target-range-val">
-                      {formatDbRange(targets.volume_rms_db)}
-                    </span>
-                  </div>
-                  <div className="target-range-pill">
-                    <span className="target-range-name">Pitch</span>
-                    <span className="target-range-val">
-                      {targets.pitch_hz[0]}–{targets.pitch_hz[1]} Hz
-                    </span>
-                  </div>
-                  <div className="target-range-pill">
-                    <span className="target-range-name">Duration</span>
-                    <span className="target-range-val">
-                      {targets.duration_ms[0]}–{targets.duration_ms[1]} ms
-                    </span>
-                  </div>
-                </div>
               </div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <Waveform volume={analyser.frame.volume} animal={animal} visible={analyser.active} />
               <TargetShape animal={animal} />
-              <Meters
-                volume={analyser.frame.volume}
-                pitch={analyser.frame.pitch}
-                animal={animal}
-                noiseFloorRms={noiseFloorRef.current}
-                volumeTarget={targets.volume_rms_db}
-                pitchTarget={targets.pitch_hz}
-              />
+              <Meters volume={analyser.frame.volume} pitch={analyser.frame.pitch} animal={animal} />
+              <FeedbackCard phase={phase} rating={rating} animal={animal} />
+
+              {/* Metric breakdown shown after result */}
               {phase === 'result' && lastGate && lastMetrics && (
                 <div className="metric-breakdown fade-up">
                   <MetricRow
-                    label="Volume (peak)"
+                    label="Volume"
                     score={lastGate.breakdown.volume}
-                    measured={`${roundDb(lastMetrics.peak_db)} dB`}
-                    target={formatDbRange(targets.volume_rms_db)}
+                    measured={`${lastMetrics.volume_rms_db.toFixed(1)} dB`}
+                    target={`${lesson.targets.volume_rms_db[0]}–${lesson.targets.volume_rms_db[1]} dB`}
                   />
                   <MetricRow
                     label="Pitch"
                     score={lastGate.breakdown.pitch}
                     measured={lastMetrics.pitch_hz > 0 ? `${Math.round(lastMetrics.pitch_hz)} Hz` : '—'}
-                    target={`${targets.pitch_hz[0]}–${targets.pitch_hz[1]} Hz`}
+                    target={`${lesson.targets.pitch_hz[0]}–${lesson.targets.pitch_hz[1]} Hz`}
                   />
                   <MetricRow
                     label="Duration"
                     score={lastGate.breakdown.duration}
                     measured={`${Math.round(lastMetrics.duration_ms)} ms`}
-                    target={`${targets.duration_ms[0]}–${targets.duration_ms[1]} ms`}
+                    target={`${lesson.targets.duration_ms[0]}–${lesson.targets.duration_ms[1]} ms`}
                   />
                 </div>
               )}
-              <FeedbackCard
-                phase={phase}
-                rating={rating}
-                attemptNumber={phase === 'result' ? attemptNumber : undefined}
-                failReasons={lastGate?.failReasons}
-              />
 
-              <AnalysisCard result={analysis} visible={phase === 'result'} lessonId={lesson.id} />
+              <AnalysisCard result={analysis} visible={phase === 'result'} />
 
               {/* XP earned banner */}
               {phase === 'result' && xpEarned !== null && (
@@ -422,15 +426,6 @@ export function LessonPage() {
                 </div>
               )}
 
-              {/* Next lesson button */}
-              {phase === 'result' && lastGate?.passed && (
-                <button
-                  className={`next-lesson-btn ${animal === 'cat' ? 'cat-theme' : 'dog-theme'}`}
-                  onClick={handleNextLesson}
-                >
-                  Next Lesson →
-                </button>
-              )}
             </div>
           )}
         </div>
@@ -445,6 +440,14 @@ export function LessonPage() {
           >
             {practiceButton.label}
           </button>
+          {phase === 'result' && (
+            <button
+              className={`practice-btn-secondary ${animal === 'cat' ? 'cat' : 'dog'}`}
+              onClick={retryAttempt}
+            >
+              Try Again
+            </button>
+          )}
         </div>
       </div>
 
@@ -466,7 +469,7 @@ function MetricRow({
   target: string;
 }) {
   const pct = Math.round(score * 100);
-  const passed = score >= METRIC_PASS_THRESHOLD;
+  const passed = score >= 0.65;
   return (
     <div className="metric-row">
       <div className="metric-row-header">
@@ -480,7 +483,7 @@ function MetricRow({
           className={`metric-row-fill ${passed ? 'pass' : 'fail'}`}
           style={{ width: `${pct}%` }}
         />
-        <div className="metric-row-goal-marker" style={{ left: `${METRIC_PASS_THRESHOLD * 100}%` }} />
+        <div className="metric-row-goal-marker" style={{ left: '65%' }} />
       </div>
       <div className="metric-row-values">
         <span className="metric-measured">{measured}</span>

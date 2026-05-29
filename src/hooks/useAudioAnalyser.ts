@@ -5,8 +5,6 @@ export interface AudioAnalyser {
   frame: AudioFrame;
   start: () => Promise<void>;
   stop: () => void;
-  readFrame: () => AudioFrame;
-  getStream: () => MediaStream | null;
   active: boolean;
   stream: MediaStream | null;
 }
@@ -87,15 +85,6 @@ export function useAudioAnalyser(): AudioAnalyser {
     rafRef.current = requestAnimationFrame(loop);
   }, []);
 
-  const readFrame = useCallback((): AudioFrame => {
-    const analyser = analyserRef.current;
-    const data = dataRef.current;
-    const ctx = ctxRef.current;
-    if (!analyser || !data || !ctx) return { volume: 0, pitch: 0 };
-    analyser.getByteTimeDomainData(data as Uint8Array<ArrayBuffer>);
-    return { volume: computeVolume(data), pitch: computePitch(data, ctx.sampleRate) };
-  }, []);
-
   const start = useCallback(async () => {
     if (streamRef.current) return;
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -105,7 +94,7 @@ export function useAudioAnalyser(): AudioAnalyser {
     const source = ctx.createMediaStreamSource(stream);
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 2048;
-    analyser.smoothingTimeConstant = 0.3;
+    analyser.smoothingTimeConstant = 0.8;
     source.connect(analyser);
 
     streamRef.current = stream;
@@ -129,11 +118,9 @@ export function useAudioAnalyser(): AudioAnalyser {
     setFrame({ volume: 0, pitch: 0 });
   }, []);
 
-  const getStream = useCallback(() => streamRef.current, []);
-
   useEffect(() => {
     return () => stop();
   }, [stop]);
 
-  return { frame, start, stop, readFrame, getStream, active, stream: streamRef.current };
+  return { frame, start, stop, active, stream: streamRef.current };
 }

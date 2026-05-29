@@ -1,63 +1,79 @@
 # Biolingo — Demo Script
 
-~2 minute hackathon walkthrough.
+~2 minute Friday demo. **Make it run twice. Make the best part obvious.**
 
 ---
 
-## Opening
+## The Order Ticket
 
-> **"We built Duolingo, but for talking to your cat."**
+> **Biolingo** — a language-learning app, the magic of *an unhinged professor grading you on how well you meow*, feel *seen, roasted, and weirdly accomplished*.
+
+| | | |
+| --- | --- | --- |
+| **01 · Start state** | The room sees a Duolingo-looking lesson: *"Say this to your cat"* with a phrase and phoneme chips. | |
+| **02 · Input** | Presenter taps record and **meows into the mic** for 4 seconds. | |
+| **03 · AI moment** | A tenured professor persona judges the attempt and tells you **what your pet actually heard** — an absurd, specific artifact. | |
+| **04 · Output** | A punchy verdict, a real metric breakdown, a breed/mood read, XP + confetti. | |
+| **05 · Payoff** | Finish a unit → a **certificate with an AI-generated comedy portrait** of your pet, ready to post to LinkedIn. | |
+
+---
+
+## Opening (10s)
+
+> **"We built Duolingo — but for talking to your cat. And your dog."**
 
 Pause. Then:
 
-> "Real lessons, real acoustic targets, and an AI coach that listens and talks back."
+> "Real lessons, real acoustic targets, and a coach with tenure and a grudge who tells you exactly what your pet actually heard."
 
 ---
 
-## Setup
+## Live interaction (75s) — *legible in 10 seconds*
 
-- Single-page React app. Three routes: home, lesson, roadmap.
-- Each lesson has acoustic targets: pitch (Hz), volume, duration, sometimes a required number of bursts.
-- Mic runs through an AMDF pitch detector with amplitude normalization — no false readings on silence.
-- An OpenAI realtime voice agent grades every attempt and speaks back in character.
-
----
-
-## Live interaction
-
-1. **Home** — show the chapters (Cat 101, Dog 101). 26 lessons total.
-2. **Open a lesson** (e.g. "The Food Demand"). Point at the target description, the dashed pitch-shape canvas, and the acoustic hints.
-3. **"🔊 Hear it"** — the AI actually meows. Live, generated, not a recording.
-4. **Tap to Meow** — do a deliberately bad attempt first. Coach catches the specific failure ("too quiet"). Then nail it. Confetti + XP at 85%+.
-5. **(Optional)** Roadmap → "same engine, more species."
+1. **Pick a language** — Felinetic 🐱 or Caninetic 🐶. (Onboarding stats are a great pre-demo laugh if you have time.)
+2. **Open a lesson** — e.g. *The Demand*: *"The food bowl situation is critical"* → `MEW · MEW · MEW`. Point at the phrase, the phoneme chips, and the **reference sound** ("here's the target — listen").
+3. **Bad attempt first.** Do something obviously wrong (too quiet, or a single long groan). The grader catches the *specific* failure, and the coach reads you for it. **Show the "what your pet actually heard" line** — that's the quotable moment.
+4. **Then nail it.** Metric bars go green, confetti at 85%+, XP lands.
+5. **The payoff.** Finish the unit's lessons → the app hands you a **certificate** with an AI-generated portrait of your pet and a postable LinkedIn caption.
 
 ---
 
-## Wow moment
+## The wow moment — *make the best part obvious*
 
-Pick whichever lands hardest:
+Pick whichever lands hardest with the room:
 
-- **The AI vocalizes the target sound.** A real meow comes out of the speakers.
-- **The coach catches a specific failure.** Not vibes — it points at *what* went wrong.
-- **Real metrics on a real signal.** Volume / pitch / duration bars driven by actual DSP.
-
----
-
-## Where AI shows up
-
-- **OpenAI realtime API (WebRTC)** — listens to user, speaks coaching back, generates demo sounds. One bidirectional session, no upload step.
-- **`give_coaching` tool call** — model returns a structured rating (score, category, comment, passed) *and* a spoken verdict in the same turn.
-- **Per-lesson instructions** — each lesson hot-swaps the agent's system prompt with its specific rubric. One persistent session, lesson-specific grading.
-
-No fine-tuning, no custom models. Everything is prompt-engineering against the realtime API.
+- **"What your pet actually heard."** The coach doesn't say "too quiet" — it says you filed a noise complaint with a Labrador named Brenda. Grounded in a real signal, delivered as comedy.
+- **The certificate portrait.** A photoreal, absurd portrait of *your* pet, generated live, from how *you* sounded.
+- **It's a real grader.** Volume / pitch / duration bars driven by actual browser DSP, not vibes.
 
 ---
 
-## How we worked with AI
+## Where AI is essential (20s) — *why AI?*
 
-- **Designed before coding.** Each feature started as a short conversation with Claude — tradeoffs first, code second.
-- **Claude read the SDK source for us.** The OpenAI Agents SDK is new; Claude grepped `node_modules` to find things like `useInsecureApiKey` and the model-in-querystring quirk we hit on a 400.
-- **Humans owned the product calls** (personas, curriculum, acoustic targets). Claude owned the implementation.
+The whole joke only works because two different AI/DSP layers disagree in the funniest way:
+
+- **Local DSP grades the truth.** Web Audio measures volume, pitch, duration, and bursts — a deterministic pass/fail. No model in the loop here; this is the straight man.
+- **`gpt-4o` is the comedian.** It gets the real result and a persona, then returns a structured `comment` + `heard` via a tool call. High temperature keeps every roast fresh.
+- **An MFCC classifier reads your pet** — breed, mood, sex — which feeds the certificate's dialect.
+- **`gpt-image-1` paints the payoff** — your aggregated profile becomes one absurd portrait, prefetched so it's ready on claim.
+
+Remove the AI and you have a karaoke pitch meter. The AI is the entire reason it's funny.
+
+---
+
+## How humans + AI built it (15s) — *the collab story*
+
+- **Designed before coding.** Each feature started as a conversation — personas, curriculum, and acoustic targets argued out first, code second.
+- **Humans owned the taste.** The voice of Professor Whiskers, the "what your pet heard" mechanic, the certificate bit — all human calls. The model owns implementation and the improv.
+- **The AI is also a collaborator at runtime**, not just at build time: it co-writes every line of feedback live.
+
+---
+
+## Reliability — *can it run twice?*
+
+- **No key? Still runs.** Lessons, scoring, and the classifier are all local. The coach and portrait fall back to canned copy + an SVG placeholder — never an error screen.
+- **Every API call has a fallback.** A failed `gpt-image-1` render shows an illustrated certificate instead of breaking the flow.
+- **The portrait is prefetched** one lesson before the unit ends, so the payoff isn't a loading spinner.
 
 ---
 
@@ -65,19 +81,28 @@ No fine-tuning, no custom models. Everything is prompt-engineering against the r
 
 Highest impact first:
 
-1. **Real-time pitch overlay** on the Target Shape canvas — draw the user's live pitch curve over the dashed target. The missing piece between "you sounded good" and "here's where you went wrong."
-2. **Unlock phases 2+** — the data is written, just flip the gate.
-3. **More species** — Bird 101, Cow 101. An afternoon of lesson data, no new code.
+1. **Live pitch overlay** on the Target Shape — draw the user's pitch curve over the dashed target so "where you went wrong" is visual, not just audible.
+2. **Wire up spoken feedback** — `src/lib/tts.ts` (ElevenLabs) is scaffolded; let the professor *say* the roast out loud.
+3. **More species** — Bird, Cow. An afternoon of lesson + reference data, no new code.
 
 ---
 
 ## Speaker cheat sheet
 
-1. Home → "Duolingo for talking to your cat"
-2. Open a lesson → target + shape + hints
-3. "Hear it" → AI meows
-4. Bad attempt → coach catches it
-5. Good attempt → confetti
-6. Close on pitch overlay
+1. Pick a language → "Duolingo for talking to your cat"
+2. Open a lesson → phrase + phonemes + reference sound
+3. Bad meow → coach catches it + "what your pet heard"
+4. Good meow → green bars + confetti
+5. Finish unit → certificate + AI portrait → LinkedIn
+6. Close on the portrait
 
 **Target: 2:00. Ceiling: 3:00.**
+
+---
+
+## Judging criteria — quick map
+
+- **Creativity & originality** — a fake academic field (Felinetic/Caninetic) with phonemes, dialects, and a certifying board.
+- **AI integration** — DSP truth + LLM comedy + audio classifier + image gen, each load-bearing.
+- **Presentation & storytelling** — the "what your pet actually heard" line and the certificate are built to be quoted and shared.
+- **AI-era collaboration** — humans set the taste and the bit; AI implements and performs.
